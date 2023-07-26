@@ -3,7 +3,7 @@
  * Name: Frida-iOS-Cipher
  * OS: iOS
  * Author: @humenger
- * Source: https://github.com/humenger/Frida-iOS-Cipher
+ * Source: https://github.com/humenger/frida-ios-cipher
  * Desc: Intercept all cryptography-related functions on iOS with Frida Api.
  * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
  * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
