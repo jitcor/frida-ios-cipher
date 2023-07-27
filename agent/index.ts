@@ -13,6 +13,12 @@
  * refs:https://frida.re/docs/javascript-api/
  * refs:https://codeshare.frida.re/@xperylab/cccrypt-dump/
  * refs:https://github.com/federicodotta/Brida
+ * refs:https://github.com/sensepost/objection/blob/master/agent/src/ios/crypto.ts
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/CommonCryptor.c.auto.html
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60026/CommonCrypto/CommonCryptor.h.auto.html
+ * refs:https://www.jianshu.com/p/8896ed432dff
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
+ * refs:https://blog.csdn.net/q187543/article/details/103920969
  **************************************************************************************/
 //config
 const CIPHER_CONFIG={
@@ -27,6 +33,7 @@ const CIPHER_CONFIG={
         "cast":true,
         "rc4":true,
         "rc2":true,
+        "blowfish":true,
     },
     "hash":{
         "enable":true,//hash enable
@@ -82,22 +89,44 @@ const CCAlgorithm:{[key:number]:string}={
     2:"kCCAlgorithm3DES",
     3:"kCCAlgorithmCAST",
     4:"kCCAlgorithmRC4",
-    5:"kCCAlgorithmRC2"
+    5:"kCCAlgorithmRC2",
+    6:"kCCAlgorithmBlowfish"
 };
 
 const CCOptions:{[key:number]:string}={
     1:"kCCOptionPKCS7Padding",
     2:"kCCOptionECBMode"
 };
+const CCMode:{[key:number]:string}={
+    1:"kCCModeECB",
+    2:"kCCModeCBC",
+    3:"kCCModeCFB",
+    4:"kCCModeCTR",
+    5:"kCCModeF8", // Unimplemented for now (not included)
+    6:"kCCModeLRW", // Unimplemented for now (not included)
+    7:"kCCModeOFB",
+    8:"kCCModeXTS",
+    9:"kCCModeRC4",
+    10:"kCCModeCFB8",
+}
+const CCPadding:{[key:number]:string}={
+    0:"ccNoPadding",
+    1:"ccPKCS7Padding",
+}
+const CCModeOptions:{[key:number]:string}={
+    0x0001:"kCCModeOptionCTR_LE",
+    0x0002:"kCCModeOptionCTR_BE"
+}
 const CCKeySize:{[key:number]:string}={
     16:"kCCKeySizeAES128|kCCKeySizeMaxCAST",
     24:"kCCKeySizeAES192|kCCKeySize3DES",
     32:"kCCKeySizeAES256",
-    8:"kCCKeySizeDES",
+    8:"kCCKeySizeDES|kCCKeySizeMinBlowfish",
     5:"kCCKeySizeMinCAST",
     1:"kCCKeySizeMinRC4|kCCKeySizeMinRC2",
     512:"kCCKeySizeMaxRC4",
-    128:"kCCKeySizeMaxRC2"
+    128:"kCCKeySizeMaxRC2",
+    56:"kCCKeySizeMaxBlowfish"
 }
 const CCHmacAlgorithm:{[key:number]:string}={
     0:"kCCHmacAlgSHA1",
@@ -121,8 +150,10 @@ function print_arg(addr,len=240) {
     try {
         if(addr==null)return "\n";
         return "\n"+hexdump(addr,{length:len}) + "\n";
-    } catch (e:any) {
-        console.error("print_arg error:",e.stack);
+    } catch (e) {
+        if(e instanceof Error){
+            console.error("print_arg error:",e.stack);
+        }
         return addr + "\n";
     }
 }
@@ -130,8 +161,10 @@ function pointerToInt(ptr:NativePointer){
     try {
         if(ptr==null)return 0;
         return parseInt(ptr.toString());
-    }catch (e:any){
-        console.error("pointerToInt error:",e.stack);
+    }catch (e){
+        if(e instanceof Error){
+            console.error("pointerToInt error:",e.stack);
+        }
         return 0;
     }
 }
@@ -169,6 +202,8 @@ function commonCryptoInterceptor() {
                 return CIPHER_CONFIG.crypto.rc4;
             case 5:
                 return CIPHER_CONFIG.crypto.rc2;
+            case 6:
+                return CIPHER_CONFIG.crypto.blowfish;
             default:
                 return true;
         }
@@ -184,7 +219,7 @@ function commonCryptoInterceptor() {
     // 	size_t dataInLength,
     // 	void *dataOut,			/* data RETURNED here */
     // 	size_t dataOutAvailable,
-    // 	size_t *dataOutMoved);	
+    // 	size_t *dataOutMoved);
     let func=Module.findExportByName("libSystem.B.dylib","CCCrypt");
     if(func==null){
         console.error("CCCrypt func is null");
@@ -262,6 +297,67 @@ function commonCryptoInterceptor() {
                 }
             }
         });
+    //CCCryptorStatus CCCryptorCreateWithMode(
+    //     CCOperation 	op,				/* kCCEncrypt, kCCEncrypt */
+    //     CCMode			mode,
+    //     CCAlgorithm		alg,
+    //     CCPadding		padding,
+    //     const void 		*iv,			/* optional initialization vector */
+    //     const void 		*key,			/* raw key material */
+    //     size_t 			keyLength,
+    //     const void 		*tweak,			/* raw tweak material */  //for mode: XTS
+    //     size_t 			tweakLength,
+    //     int				numRounds,		/* 0 == default */
+    //     CCModeOptions 	options,
+    //     CCCryptorRef	*cryptorRef)	/* RETURNED */
+    let CCCryptorCreateWithMode=Module.findExportByName("libSystem.B.dylib","CCCryptorCreateWithMode");
+    if(CCCryptorCreateWithMode==null){
+        console.error("CCCryptorCreateWithMode func is null ")
+        return;
+    }
+    Interceptor.attach(CCCryptorCreateWithMode,
+        {
+            onEnter: function(args) {
+                this.cRefPtr=args[11];
+                this.operation=args[0];
+                this.mode=args[1];
+                this.algorithm=args[2];
+                this.padding=args[3];
+                this.iv=args[4];
+                this.key=args[5];
+                this.keyLen=args[6];
+                this.tweak=args[7];
+                this.tweakLen=args[8];
+                this.numRounds=args[9];
+                this.options=args[10];
+
+            },
+            onLeave:function (reval) {
+                let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
+                cRefCache[pointerToInt(model.cRef)]=model;
+                if(!model.enable)return;
+                model.log=model.log.concat("[*] ENTER CCCryptorCreateWithMode","\n");
+                model.log=model.log.concat("[+] CCOperation: " + CCOperation[this.operation.toInt32()],"\n");
+                model.log=model.log.concat("[+] CCMode: " + CCMode[this.mode.toInt32()],"\n");
+                model.log=model.log.concat("[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],"\n");
+                model.log=model.log.concat("[+] CCPadding: " + CCPadding[this.padding.toInt32()],"\n");
+                model.log=model.log.concat("[+] CCModeOptions: " + CCModeOptions[this.options.toInt32()],"\n");
+                let tweakLen=this.tweakLen.toInt32();
+                if(tweakLen>0&&pointerToInt(this.tweak)!=0){
+                    model.log=model.log.concat("[+] tweak len: " + tweakLen,"\n");
+                    model.log=model.log.concat("[+] tweak: \n" + print_arg(this.tweak,pointerToInt(this.tweakLen)),"\n");
+                }
+                model.log=model.log.concat("[+] numRounds: " + this.numRounds.toInt32(),"\n");
+                model.log=model.log.concat("[+] Key len: " + CCKeySize[this.keyLen.toInt32()],"\n");
+                model.log=model.log.concat("[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),"\n");
+                if(pointerToInt(this.iv)!=0){
+                    model.log=model.log.concat("[+] Iv:\n" + print_arg(this.iv,16),"\n");
+                }else {
+                    model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
+                }
+            }
+        });
+
     //CCCryptorStatus CCCryptorUpdate(CCCryptorRef cryptorRef, const void *dataIn,size_t dataInLength, void *dataOut, size_t dataOutAvailable,size_t *dataOutMoved);
     let CCCryptorUpdate=Module.findExportByName("libSystem.B.dylib","CCCryptorUpdate");
     if(CCCryptorUpdate==null){
