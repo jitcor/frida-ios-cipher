@@ -43,5 +43,6 @@ const CIPHER_CONFIG={
 ```
 # build
 ```bash
+npm install 
 npm run build
 ```
