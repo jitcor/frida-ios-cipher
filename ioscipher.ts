@@ -391,7 +391,7 @@ function commonHashInterceptor(name:string, length:number){
             this.log=this.log.concat("[*] ENTER ",name,"\n");
             let dataLen=args[1].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hash.maxInputDataLength);
-            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data len: ",printLen,"/",dataLen,"\n");
             this.log=this.log.concat("[+] Data: \n",print_arg(args[0],printLen),"\n")
 
         },
@@ -401,7 +401,7 @@ function commonHashInterceptor(name:string, length:number){
             if(CIPHER_CONFIG.hash.printStack){
                 this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
             }
-            this.log=this.log.concat("[*] EXIT",name,"\n");
+            this.log=this.log.concat("[*] EXIT ",name,"\n");
             console.log(this.log);
         }
     });
@@ -545,7 +545,7 @@ function commonHMACInterceptor(){
 
             let dataLen=args[4].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hmac.maxInputDataLength);
-            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data len: ",printLen,"/",dataLen,"\n");
             this.log=this.log.concat("[+] Data: \n",print_arg(args[3],printLen),"\n")
             this.macOut=args[5];
         },
@@ -556,7 +556,7 @@ function commonHMACInterceptor(){
             if(CIPHER_CONFIG.hmac.printStack){
                 this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
             }
-            this.log=this.log.concat("[*] EXIT",name,"\n");
+            this.log=this.log.concat("[*] EXIT ",name,"\n");
             console.log(this.log);
         }
     });
