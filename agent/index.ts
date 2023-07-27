@@ -121,7 +121,7 @@ function print_arg(addr,len=240) {
     try {
         if(addr==null)return "\n";
         return "\n"+hexdump(addr,{length:len}) + "\n";
-    } catch (e) {
+    } catch (e:any) {
         console.error("print_arg error:",e.stack);
         return addr + "\n";
     }
@@ -130,7 +130,7 @@ function pointerToInt(ptr:NativePointer){
     try {
         if(ptr==null)return 0;
         return parseInt(ptr.toString());
-    }catch (e){
+    }catch (e:any){
         console.error("pointerToInt error:",e.stack);
         return 0;
     }
