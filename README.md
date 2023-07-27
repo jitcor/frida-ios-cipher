@@ -1,6 +1,8 @@
 # frida-ios-cipher
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/Humenger/frida-ios-cipher/.github%2Fworkflows%2Fbuild.yml)
+## Introduction
 Intercept all cryptography-related functions on iOS with Frida Api.
-# config
+## config
 ```js
 const CIPHER_CONFIG={
     "enable":true,//global enable
@@ -41,7 +43,7 @@ const CIPHER_CONFIG={
     },
 }
 ```
-# build
+## build
 ```bash
 npm install 
 npm run build
