@@ -1,6 +1,6 @@
 
 /*************************************************************************************
- * Name: Frida-iOS-Cipher
+ * Name: frida-ios-cipher
  * OS: iOS
  * Author: @humenger
  * Source: https://github.com/humenger/frida-ios-cipher
@@ -16,46 +16,44 @@
  **************************************************************************************/
 //config
 const CIPHER_CONFIG={
-    "maxDataLength":240,//Maximum length of single data printout,if 0, the original length.
-    "interceptor":{
-        "enable":true,//global enable
-        "crypto":{
-            "enable":true,//crypto enable
-            "aes":true,
-            "des":true,
-            "3des":true,
-            "cast":true,
-            "rc4":true,
-            "rc2":true,
-        },
-        "hash":{
-            "enable":true,//hash enable
-            "md2":true,
-            "md4":true,
-            "md5":true,
-            "sha1":true,
-            "sha224":true,
-            "sha256":true,
-            "sha384":true,
-            "sha512":true
-        },
-        "hmac":{
-            "enable":true,//hmac enable
-            "sha1":true,
-            "md5":true,
-            "sha224":true,
-            "sha256":true,
-            "sha384":true,
-            "sha512":true,
-        },
-    }
+    "enable":true,//global enable
+    "crypto":{
+        "enable":true,//crypto enable
+        "maxDataLength":240,//Maximum length of single data printout
+        "aes":true,
+        "des":true,
+        "3des":true,
+        "cast":true,
+        "rc4":true,
+        "rc2":true,
+    },
+    "hash":{
+        "enable":true,//hash enable
+        "maxInputDataLength":240,
+        "md2":true,
+        "md4":true,
+        "md5":true,
+        "sha1":true,
+        "sha224":true,
+        "sha256":true,
+        "sha384":true,
+        "sha512":true
+    },
+    "hmac":{
+        "enable":true,//hmac enable
+        "maxInputDataLength":240,
+        "sha1":true,
+        "md5":true,
+        "sha224":true,
+        "sha256":true,
+        "sha384":true,
+        "sha512":true,
+    },
 }
 
 
 
 //common
-//Maximum length of single data printout
-const MAX_DATA_LENGTH=48;
 const COLORS = {
     "resetColor": "\x1b[0m",
     "green": "\x1b[32m",
@@ -137,6 +135,7 @@ function pointerToInt(ptr:NativePointer){
 
 //crypto
 interface CCCryptorModel{
+    enable:boolean,
     cRef:NativePointer,
     dataMap:{
         data:NativePointer,
@@ -153,6 +152,36 @@ interface CCCryptorModel{
     log:string
 }
 function commonCryptoInterceptor() {
+    function checkCryptoAlgorithmEnable(algorithm: number) {
+        switch (algorithm){
+            case 0:
+                return CIPHER_CONFIG.crypto.aes;
+            case 1:
+                return CIPHER_CONFIG.crypto.des;
+            case 2:
+                return CIPHER_CONFIG.crypto["3des"];
+            case 3:
+                return CIPHER_CONFIG.crypto.cast;
+            case 4:
+                return CIPHER_CONFIG.crypto.rc4;
+            case 5:
+                return CIPHER_CONFIG.crypto.rc2;
+            default:
+                return true;
+        }
+    }
+    //CCCryptorStatus CCCrypt(
+    // 	CCOperation op,			/* kCCEncrypt, etc. */
+    // 	CCAlgorithm alg,		/* kCCAlgorithmAES128, etc. */
+    // 	CCOptions options,		/* kCCOptionPKCS7Padding, etc. */
+    // 	const void *key,
+    // 	size_t keyLength,
+    // 	const void *iv,			/* optional initialization vector */
+    // 	const void *dataIn,		/* optional per op and alg */
+    // 	size_t dataInLength,
+    // 	void *dataOut,			/* data RETURNED here */
+    // 	size_t dataOutAvailable,
+    // 	size_t *dataOutMoved);	
     let func=Module.findExportByName("libSystem.B.dylib","CCCrypt");
     if(func==null){
         console.error("CCCrypt func is null");
@@ -161,6 +190,8 @@ function commonCryptoInterceptor() {
     Interceptor.attach(func,
         {
             onEnter: function(args) {
+                this.enable=checkCryptoAlgorithmEnable(args[1].toInt32());
+                if(!this.enable)return;
                 this.log="";
                 this.log=this.log.concat(COLORS.green,"[*] ENTER CCCrypt",COLORS.resetColor);
                 this.log=this.log.concat(Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
@@ -171,19 +202,22 @@ function commonCryptoInterceptor() {
                 this.log=this.log.concat("[+] Key: \n" + print_arg(args[3],args[4].toInt32()),"\n");
                 this.log=this.log.concat("[+] IV: \n" + print_arg(args[5],16),"\n");
                 let dataInLength = pointerToInt(args[7]);
-                this.log=this.log.concat("[+] Data len: ",dataInLength,"\n");
+                let printLength=Math.min(dataInLength,CIPHER_CONFIG.crypto.maxDataLength);
+                this.log=this.log.concat("[+] Data len: ",printLength,"/",dataInLength,"\n");
                 this.log=this.log.concat("[+] Data : \n","\n");
-                this.log=this.log.concat(print_arg(args[6],dataInLength));
+                this.log=this.log.concat(print_arg(args[6],printLength));
                 this.dataOut = args[8];
                 this.dataOutLength = args[10];
 
             },
 
             onLeave: function(retval) {
+                if(!this.enable)return;
                 let dataOutLen=pointerToInt(this.dataOutLength.readPointer());
-                this.log=this.log.concat("[+] Data out len: ",dataOutLen,"\n");
+                let printOutLen=Math.min(dataOutLen,CIPHER_CONFIG.crypto.maxDataLength);
+                this.log=this.log.concat("[+] Data out len: ",printOutLen,"/",dataOutLen,"\n");
                 this.log=this.log.concat("[+] Data out: \n","\n");
-                this.log=this.log.concat(print_arg(this.dataOut,dataOutLen));
+                this.log=this.log.concat(print_arg(this.dataOut,printOutLen));
 
                 this.log=this.log.concat("[*] EXIT CCCrypt","\n");
             }
@@ -208,7 +242,9 @@ function commonCryptoInterceptor() {
                 this.iv=args[5];
             },
             onLeave:function (reval) {
-                let model:CCCryptorModel={cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
+                let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
+                cRefCache[pointerToInt(model.cRef)]=model;
+                if(!model.enable)return;
                 model.log=model.log.concat("[*] ENTER CCCryptorCreate","\n");
                 model.log=model.log.concat("[+] CCOperation: " + CCOperation[this.operation.toInt32()],"\n");
                 model.log=model.log.concat("[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],"\n");
@@ -220,7 +256,6 @@ function commonCryptoInterceptor() {
                 }else {
                     model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
                 }
-                cRefCache[pointerToInt(model.cRef)]=model;
             }
         });
     //CCCryptorStatus CCCryptorUpdate(CCCryptorRef cryptorRef, const void *dataIn,size_t dataInLength, void *dataOut, size_t dataOutAvailable,size_t *dataOutMoved);
@@ -245,7 +280,10 @@ function commonCryptoInterceptor() {
                     console.error("CCCryptorUpdate model is null");
                     return;
                 }
-                let remainingSpace = MAX_DATA_LENGTH - model.totalLen;
+                if(!model.enable)return;
+                model.originalLen+=this.dataLen;
+                model.originalOutLen+=this.outLen;
+                let remainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalLen;
                 let dataLen = pointerToInt(this.dataLen);
                 if(dataLen>0&&remainingSpace>0){
                     let copyLength = Math.min(dataLen, remainingSpace);
@@ -254,7 +292,7 @@ function commonCryptoInterceptor() {
                     model.dataMap.push({data:tmpData,len:copyLength})
                     model.totalLen+=copyLength;
                 }
-                let outRemainingSpace = MAX_DATA_LENGTH - model.totalOutLen;
+                let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
                 let outLen=pointerToInt(this.outLen.readPointer());
                 if(outLen>0&&outRemainingSpace>0){
                     let copyLength = Math.min(outLen, outRemainingSpace);
@@ -285,8 +323,10 @@ function commonCryptoInterceptor() {
                     console.error("CCCryptorFinal model is null");
                     return;
                 }
-                if(model.totalOutLen<MAX_DATA_LENGTH){
-                    let outRemainingSpace = MAX_DATA_LENGTH - model.totalOutLen;
+                if(!model.enable)return;
+                model.originalOutLen+=this.dataOutLen;
+                if(model.totalOutLen<CIPHER_CONFIG.crypto.maxDataLength){
+                    let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
                     let outLen=pointerToInt(this.dataOutLen.readPointer());
                     if(outLen>0&&outRemainingSpace>0){
                         let copyLength=Math.min(outLen,outRemainingSpace);
@@ -308,9 +348,9 @@ function commonCryptoInterceptor() {
                     Memory.copy(totalOutData.add(offsetOut),value.data,value.len)
                     offsetOut+=value.len;
                 });
-                model.log=model.log.concat("[+] Data len: "+model.totalLen+"\n");
+                model.log=model.log.concat("[+] Data len: "+model.totalLen+"/"+model.originalLen+"\n");
                 model.log=model.log.concat("[+] Data : \n",print_arg(totalData,model.totalLen),"\n");
-                model.log=model.log.concat("[+] Data out len: "+model.totalOutLen+"\n");
+                model.log=model.log.concat("[+] Data out len: "+model.totalOutLen+"/"+model.originalOutLen+"\n");
                 model.log=model.log.concat("[+] Data out: \n",print_arg(totalOutData,model.totalOutLen),"\n");
                 model.log=model.log.concat("[*] EXIT CCCryptorFinal ","\n");
                 console.log(model.log);
@@ -328,6 +368,7 @@ interface CCHashModel{
         data:NativePointer,
         len:number }[],
     totalLen:number,
+    originalLen:number,
     log:string
 }
 
@@ -341,8 +382,10 @@ function commonHashInterceptor(name:string, length:number){
         onEnter:function (args){
             this.log="";
             this.log=this.log.concat("[*] ENTER ",name,"\n");
-            this.log=this.log.concat("[+] Data len:",args[1].toInt32(),"\n");
-            this.log=this.log.concat("[+] Data: \n",print_arg(args[0],args[1].toInt32()),"\n")
+            let dataLen=args[1].toInt32();
+            let printLen=Math.min(dataLen,CIPHER_CONFIG.hash.maxInputDataLength);
+            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data: \n",print_arg(args[0],printLen),"\n")
 
         },
         onLeave:function (reval){
@@ -363,7 +406,7 @@ function commonHashInterceptor(name:string, length:number){
         Interceptor.attach(init,
             {
                 onEnter: function(args) {
-                    let model={ctx:args[0],dataMap:[],totalLen:0,log:""};
+                    let model={ctx:args[0],dataMap:[],totalLen:0,originalLen:0,log:""};
                     ctxCache[pointerToInt(args[0])]=model;
                     model.log=model.log.concat("[*] ENTER "+name+"_Init\n");
                 }
@@ -384,11 +427,14 @@ function commonHashInterceptor(name:string, length:number){
                         return;
                     }
                     let len=pointerToInt(args[2]);
-                    if(len>0){
-                        let tmpData=Memory.alloc(len);
-                        Memory.copy(tmpData,args[1],len);
-                        model.dataMap.push({data:tmpData,len:len});
-                        model.totalLen+=len;
+                    let remainingSpace=CIPHER_CONFIG.hash.maxInputDataLength-model.totalLen;
+                    if(len>0&&remainingSpace>0){
+                        model.originalLen+=len;
+                        let copyLen=Math.min(len,remainingSpace);
+                        let tmpData=Memory.alloc(copyLen);
+                        Memory.copy(tmpData,args[1],copyLen);
+                        model.dataMap.push({data:tmpData,len:copyLen});
+                        model.totalLen+=copyLen;
                     }
 
                 }
@@ -409,7 +455,7 @@ function commonHashInterceptor(name:string, length:number){
                 onLeave: function(retval) {
                     let model=ctxCache[pointerToInt(this.ctxSha)];
                     if(model==null){
-                        console.error("model is null");
+                        console.error(name+"_Final model is null");
                         return;
                     }
                     if(model.totalLen<=0){
@@ -422,7 +468,7 @@ function commonHashInterceptor(name:string, length:number){
                         Memory.copy(totalData.add(offset),value.data,value.len)
                         offset+=value.len;
                     });
-                    model.log=model.log.concat("[+] Data len: "+model.totalLen+"\n");
+                    model.log=model.log.concat("[+] Data len: "+model.totalLen+"/"+model.originalLen+"\n");
                     model.log=model.log.concat("[+] Data :\n");
                     model.log=model.log.concat(print_arg(totalData,model.totalLen),"\n");
 
@@ -444,9 +490,28 @@ function commonHashInterceptor(name:string, length:number){
 //hmac
 
 interface CCHMacModel extends CCHashModel{
-    mdLen:number
+    mdLen:number,
+    enable:boolean,
 }
 function commonHMACInterceptor(){
+    function checkHMACAlgorithmEnable(algorithm: number) {
+        switch (algorithm){
+            case 0:
+                return CIPHER_CONFIG.hmac.sha1;
+            case 1:
+                return CIPHER_CONFIG.hmac.md5;
+            case 2:
+                return CIPHER_CONFIG.hmac.sha256;
+            case 3:
+                return CIPHER_CONFIG.hmac.sha384;
+            case 4:
+                return CIPHER_CONFIG.hmac.sha512;
+            case 5:
+                return CIPHER_CONFIG.hmac.sha224;
+            default:
+                return true;
+        }
+    }
     let name="CCHmac";
     //void CCHmac(CCHmacAlgorithm algorithm, const void *key, size_t keyLength,const void *data, size_t dataLength, void *macOut);
     let hmac=Module.findExportByName("libSystem.B.dylib",name);
@@ -456,6 +521,8 @@ function commonHMACInterceptor(){
     }
     Interceptor.attach(hmac,{
         onEnter:function (args){
+            this.enable=checkHMACAlgorithmEnable(args[0].toInt32());
+            if(!this.enable)return;
             this.mdLen=CCHmacAlgorithmLength[args[0].toInt32()];
             this.log="";
             this.log=this.log.concat("[*] ENTER ",name,"\n");
@@ -463,11 +530,14 @@ function commonHMACInterceptor(){
             this.log=this.log.concat("[+] Key len: ",args[2].toInt32(),"\n");
             this.log=this.log.concat(COLORS.green,"[+] Key : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
 
-            this.log=this.log.concat("[+] Data len:",args[4].toInt32(),"\n");
-            this.log=this.log.concat("[+] Data: \n",print_arg(args[3],args[4].toInt32()),"\n")
+            let dataLen=args[4].toInt32();
+            let printLen=Math.min(dataLen,CIPHER_CONFIG.hmac.maxInputDataLength);
+            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data: \n",print_arg(args[3],printLen),"\n")
             this.macOut=args[5];
         },
         onLeave:function (reval){
+            if(!this.enable)return;
             this.log=this.log.concat("[+] Data out len: "+this.mdLen,"\n");
             this.log=this.log.concat(COLORS.green,"[+] Data out:\n",print_arg(reval,this.mdLen),COLORS.resetColor,"\n");
             this.log=this.log.concat("[*] EXIT",name,"\n");
@@ -476,7 +546,9 @@ function commonHMACInterceptor(){
     });
     (function (){
         let ctxCache :{[key:number]:CCHMacModel}={}
-        //CC_SHA1_Init(CC_SHA1_CTX *c);
+        //void
+        //      CCHmacInit(CCHmacContext *ctx, CCHmacAlgorithm algorithm,
+        //          const void *key, size_t keyLength);
         let init=Module.findExportByName("libSystem.B.dylib",name+"Init");
         if(init==null){
             console.error(name+"Init func is null");
@@ -485,8 +557,9 @@ function commonHMACInterceptor(){
         Interceptor.attach(init,
             {
                 onEnter: function(args) {
-                    let model={ctx:args[0],dataMap:[],totalLen:0,log:"",mdLen:CCHmacAlgorithmLength[args[1].toInt32()]};
+                    let model={ctx:args[0],dataMap:[],totalLen:0,originalLen:0,log:"",mdLen:CCHmacAlgorithmLength[args[1].toInt32()],enable:checkHMACAlgorithmEnable(args[1].toInt32())};
                     ctxCache[pointerToInt(args[0])]=model;
+                    if(!model.enable)return;
                     model.log=model.log.concat("[*] ENTER "+name+"Init\n");
                     model.log=model.log.concat(COLORS.yellow,"[+] Algorithm: "+CCHmacAlgorithm[args[1].toInt32()]+"\n",COLORS.resetColor);
                     model.log=model.log.concat("[+] Key len: "+args[3].toInt32()+"\n");
@@ -494,7 +567,8 @@ function commonHMACInterceptor(){
                 }
             });
 
-        //CC_SHA1_Update(CC_SHA1_CTX *c, const void *data, CC_LONG len);
+        //void
+        //      CCHmacUpdate(CCHmacContext *ctx, const void *data, size_t dataLength);
         let update=Module.findExportByName("libSystem.B.dylib",name+"Update");
         if(update==null){
             console.error(name+"Update func is null");
@@ -505,21 +579,26 @@ function commonHMACInterceptor(){
                 onEnter: function(args) {
                     let model=ctxCache[pointerToInt(args[0])];
                     if(model==null){
-                        console.error("model is null");
+                        console.error(name+"Update model is null");
                         return;
                     }
+                    if(!model.enable)return;
                     let len=pointerToInt(args[2]);
-                    if(len>0){
-                        let tmpData=Memory.alloc(len);
-                        Memory.copy(tmpData,args[1],len);
-                        model.dataMap.push({data:tmpData,len:len});
-                        model.totalLen+=len;
+                    let remainingSpace=CIPHER_CONFIG.hmac.maxInputDataLength-model.totalLen;
+                    if(len>0&&remainingSpace>0){
+                        model.originalLen+=len;
+                        let copyLen=Math.min(len,remainingSpace);
+                        let tmpData=Memory.alloc(copyLen);
+                        Memory.copy(tmpData,args[1],copyLen);
+                        model.dataMap.push({data:tmpData,len:copyLen});
+                        model.totalLen+=copyLen;
                     }
 
                 }
             });
-
-        //CC_SHA1_Final(unsigned char *md, CC_SHA1_CTX *c);
+        
+        //void
+        //      CCHmacFinal(CCHmacContext *ctx, void *macOut);
         let final=Module.findExportByName("libSystem.B.dylib",name+"Final");
         if(final==null){
             console.error(name+"Final func is null");
@@ -534,9 +613,10 @@ function commonHMACInterceptor(){
                 onLeave: function(retval) {
                     let model=ctxCache[pointerToInt(this.ctx)];
                     if(model==null){
-                        console.error("model is null");
+                        console.error(name+"Final model is null");
                         return;
                     }
+                    if(!model.enable)return;
                     if(model.totalLen<=0){
                         console.error("totalLen :",model.totalLen);
                         return;
@@ -547,7 +627,7 @@ function commonHMACInterceptor(){
                         Memory.copy(totalData.add(offset),value.data,value.len)
                         offset+=value.len;
                     });
-                    model.log=model.log.concat("[+] Data len: "+model.totalLen+"\n");
+                    model.log=model.log.concat("[+] Data len: "+model.totalLen+"/"+model.originalLen+"\n");
                     model.log=model.log.concat("[+] Data :\n");
                     model.log=model.log.concat(print_arg(totalData,model.totalLen),"\n");
 
@@ -566,46 +646,46 @@ function commonHMACInterceptor(){
 
 //start
 (function (){
-    if(!CIPHER_CONFIG.interceptor.enable){
+    if(!CIPHER_CONFIG.enable){
         return
     }
-    if(CIPHER_CONFIG.interceptor.crypto.enable){
+    if(CIPHER_CONFIG.crypto.enable){
         commonCryptoInterceptor();
     }
-    if(CIPHER_CONFIG.interceptor.hash.enable){
-        if(CIPHER_CONFIG.interceptor.hash.sha1){
+    if(CIPHER_CONFIG.hash.enable){
+        if(CIPHER_CONFIG.hash.sha1){
             //extern unsigned char *CC_SHA1(const void *data, CC_LONG len, unsigned char *md)
             commonHashInterceptor("CC_SHA1",20);
         }
-        if(CIPHER_CONFIG.interceptor.hash.sha224){
+        if(CIPHER_CONFIG.hash.sha224){
             //extern unsigned char *CC_SHA224(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_SHA224",28);
         }
-        if(CIPHER_CONFIG.interceptor.hash.sha256){
+        if(CIPHER_CONFIG.hash.sha256){
             //extern unsigned char *CC_SHA256(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_SHA256",32);
         }
-        if(CIPHER_CONFIG.interceptor.hash.sha384){
+        if(CIPHER_CONFIG.hash.sha384){
             //extern unsigned char *CC_SHA384(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_SHA384",48);
         }
-        if(CIPHER_CONFIG.interceptor.hash.sha512){
+        if(CIPHER_CONFIG.hash.sha512){
             //extern unsigned char *CC_SHA512(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_SHA512",64);
         }
-        if(CIPHER_CONFIG.interceptor.hash.md2){
+        if(CIPHER_CONFIG.hash.md2){
             //extern unsigned char *CC_MD2(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_MD2",16);
         }
-        if(CIPHER_CONFIG.interceptor.hash.md4){
+        if(CIPHER_CONFIG.hash.md4){
             //extern unsigned char *CC_MD4(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_MD4",16);
         }
-        if(CIPHER_CONFIG.interceptor.hash.md5){
+        if(CIPHER_CONFIG.hash.md5){
             //extern unsigned char *CC_MD5(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_MD5",16);
         }
-        if(CIPHER_CONFIG.interceptor.hmac.enable){
+        if(CIPHER_CONFIG.hmac.enable){
             commonHMACInterceptor();
         }
 
