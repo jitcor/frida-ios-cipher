@@ -16,6 +16,7 @@ const CIPHER_CONFIG={
         "cast":true,
         "rc4":true,
         "rc2":true,
+        "blowfish":true,
     },
     "hash":{
         "enable":true,//hash enable
@@ -41,7 +42,12 @@ const CIPHER_CONFIG={
         "sha384":true,
         "sha512":true,
     },
+    "pbkdf":{
+        "enable":true,
+        "printStack":false,
+    }
 }
+
 ```
 ## build
 ```bash
