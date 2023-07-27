@@ -41,3 +41,7 @@ const CIPHER_CONFIG={
     },
 }
 ```
+# build
+```bash
+npm run build
+```
