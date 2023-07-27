@@ -1,0 +1,16 @@
+{
+  "name": "frida-ios-cipher",
+  "version": "1.0.0",
+  "description": "Intercept all cryptography-related functions on iOS with Frida Api.",
+  "private": false,
+  "main": "agent/index.ts",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "rm -rf _agent.js & frida-compile agent/index.ts -o _agent.js -c"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^16.2.0",
+    "@types/node": "^14.14.10",
+    "frida-compile": "^10.0.0"
+  }
+}
