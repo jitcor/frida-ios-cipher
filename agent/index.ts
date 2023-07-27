@@ -9,6 +9,7 @@
  * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
  * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_SHA.3cc.html#//apple_ref/doc/man/3cc/CC_SHA
  * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CCCryptor.3cc.html#//apple_ref/doc/man/3cc/CCCryptor
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-55010/CommonCrypto/CommonKeyDerivation.h.auto.html
  * refs:https://www.cnblogs.com/cocoajin/p/6150203.html
  * refs:https://frida.re/docs/javascript-api/
  * refs:https://codeshare.frida.re/@xperylab/cccrypt-dump/
@@ -59,6 +60,10 @@ const CIPHER_CONFIG={
         "sha384":true,
         "sha512":true,
     },
+    "pbkdf":{
+        "enable":true,
+        "printStack":false,
+    }
 }
 
 
@@ -143,6 +148,17 @@ const CCHmacAlgorithmLength:{[key:number]:number}={
     3:CC_SHA384_DIGEST_LENGTH,
     4:CC_SHA512_DIGEST_LENGTH,
     5:CC_SHA224_DIGEST_LENGTH,
+}
+
+const CCPseudoRandomAlgorithm:{[key:number]:string}={
+    1:"kCCPRFHmacAlgSHA1",
+    2:"kCCPRFHmacAlgSHA224",
+    3:"kCCPRFHmacAlgSHA256",
+    4:"kCCPRFHmacAlgSHA384",
+    5:"kCCPRFHmacAlgSHA512",
+}
+const CCPBKDFAlgorithm:{[key:number]:string}={
+    2:"kCCPBKDF2"
 }
 
 // @ts-ignore
@@ -757,6 +773,71 @@ function commonHMACInterceptor(){
     })();
 }
 
+//pbkdf
+function commonPBKDFInterceptor(){
+    //int
+    // CCKeyDerivationPBKDF( CCPBKDFAlgorithm algorithm, const char *password, size_t passwordLen,
+    //                       const uint8_t *salt, size_t saltLen,
+    //                       CCPseudoRandomAlgorithm prf, uint rounds,
+    //                       uint8_t *derivedKey, size_t derivedKeyLen)
+    let CCKeyDerivationPBKDF=Module.findExportByName("libSystem.B.dylib","CCKeyDerivationPBKDF");
+    if(CCKeyDerivationPBKDF==null){
+        console.error("CCKeyDerivationPBKDF func is null");
+        return;
+    }
+    Interceptor.attach(CCKeyDerivationPBKDF,{
+        onEnter:function (args){
+            this.derivedKey=args[7];
+            this.derivedKeyLen=args[8];
+            this.log="";
+            this.log=this.log.concat("[*] ENTER CCKeyDerivationPBKDF","\n");
+            this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCPBKDFAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.yellow,"[+] PseudoRandomAlgorithm: ",CCPseudoRandomAlgorithm[args[5].toInt32()],"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.yellow,"[+] Rounds: ",pointerToInt(args[6]),"\n",COLORS.resetColor);
+            this.log=this.log.concat("[+] Password len: ",args[2].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.green,"[+] Password : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat("[+] Salt len: ",args[4].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.green,"[+] Salt : \n",print_arg(args[3],args[4].toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat("[+] DerivedKey len: ",args[8].toInt32(),"\n");
+        },
+        onLeave:function (reval){
+            this.log=this.log.concat(COLORS.green,"[+] DerivedKey : \n",print_arg(this.derivedKey,this.derivedKey.toInt32()),"\n",COLORS.resetColor);
+            if(CIPHER_CONFIG.pbkdf.printStack){
+                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+            }
+            this.log=this.log.concat("[*] EXIT CCKeyDerivationPBKDF","\n");
+            console.log(this.log);
+        }
+    });
+    //uint
+    // CCCalibratePBKDF(CCPBKDFAlgorithm algorithm, size_t passwordLen, size_t saltLen,
+    //                  CCPseudoRandomAlgorithm prf, size_t derivedKeyLen, uint32_t msec)
+    let CCCalibratePBKDF=Module.findExportByName("libSystem.B.dylib","CCCalibratePBKDF");
+    if(CCCalibratePBKDF==null){
+        console.error("CCCalibratePBKDF func is null");
+        return;
+    }
+    Interceptor.attach(CCCalibratePBKDF,{
+        onEnter:function (args){
+            this.log="";
+            this.log=this.log.concat("[*] ENTER CCCalibratePBKDF","\n");
+            this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCPBKDFAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.yellow,"[+] PseudoRandomAlgorithm: ",CCPseudoRandomAlgorithm[args[3].toInt32()],"\n",COLORS.resetColor);
+            this.log=this.log.concat("[+] Password len: ",args[1].toInt32(),"\n");
+            this.log=this.log.concat("[+] Salt len: ",args[2].toInt32(),"\n");
+            this.log=this.log.concat("[+] DerivedKey len: ",args[4].toInt32(),"\n");
+            this.log=this.log.concat("[+] Msec : ",pointerToInt(args[5]),"\n");
+        },
+        onLeave:function (reval){
+            this.log=this.log.concat("[+] IterNum : \n",pointerToInt(reval),"\n");
+            if(CIPHER_CONFIG.pbkdf.printStack){
+                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+            }
+            this.log=this.log.concat("[*] EXIT CCCalibratePBKDF","\n");
+            console.log(this.log);
+        }
+    });
+}
 
 //start
 (function (){
@@ -801,6 +882,9 @@ function commonHMACInterceptor(){
         }
         if(CIPHER_CONFIG.hmac.enable){
             commonHMACInterceptor();
+        }
+        if(CIPHER_CONFIG.pbkdf.enable){
+            commonPBKDFInterceptor();
         }
 
     }
