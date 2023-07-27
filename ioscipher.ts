@@ -20,6 +20,7 @@ const CIPHER_CONFIG={
     "crypto":{
         "enable":true,//crypto enable
         "maxDataLength":240,//Maximum length of single data printout
+        "printStack":false,
         "aes":true,
         "des":true,
         "3des":true,
@@ -30,6 +31,7 @@ const CIPHER_CONFIG={
     "hash":{
         "enable":true,//hash enable
         "maxInputDataLength":240,
+        "printStack":false,
         "md2":true,
         "md4":true,
         "md5":true,
@@ -42,6 +44,7 @@ const CIPHER_CONFIG={
     "hmac":{
         "enable":true,//hmac enable
         "maxInputDataLength":240,
+        "printStack":false,
         "sha1":true,
         "md5":true,
         "sha224":true,
@@ -216,9 +219,10 @@ function commonCryptoInterceptor() {
                 let dataOutLen=pointerToInt(this.dataOutLength.readPointer());
                 let printOutLen=Math.min(dataOutLen,CIPHER_CONFIG.crypto.maxDataLength);
                 this.log=this.log.concat("[+] Data out len: ",printOutLen,"/",dataOutLen,"\n");
-                this.log=this.log.concat("[+] Data out: \n","\n");
-                this.log=this.log.concat(print_arg(this.dataOut,printOutLen));
-
+                this.log=this.log.concat("[+] Data out: \n",print_arg(this.dataOut,printOutLen),"\n");
+                if(CIPHER_CONFIG.crypto.printStack) {
+                    this.log = this.log.concat("[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), "\n");
+                }
                 this.log=this.log.concat("[*] EXIT CCCrypt","\n");
             }
 
@@ -352,6 +356,9 @@ function commonCryptoInterceptor() {
                 model.log=model.log.concat("[+] Data : \n",print_arg(totalData,model.totalLen),"\n");
                 model.log=model.log.concat("[+] Data out len: "+model.totalOutLen+"/"+model.originalOutLen+"\n");
                 model.log=model.log.concat("[+] Data out: \n",print_arg(totalOutData,model.totalOutLen),"\n");
+                if(CIPHER_CONFIG.crypto.printStack){
+                    model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                }
                 model.log=model.log.concat("[*] EXIT CCCryptorFinal ","\n");
                 console.log(model.log);
             }
@@ -391,6 +398,9 @@ function commonHashInterceptor(name:string, length:number){
         onLeave:function (reval){
             this.log=this.log.concat(COLORS.green,"[+] Data out len: "+length,COLORS.resetColor,"\n");
             this.log=this.log.concat(COLORS.green,"[+] Data out:\n",print_arg(reval,length),COLORS.resetColor,"\n");
+            if(CIPHER_CONFIG.hash.printStack){
+                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+            }
             this.log=this.log.concat("[*] EXIT",name,"\n");
             console.log(this.log);
         }
@@ -479,6 +489,9 @@ function commonHashInterceptor(name:string, length:number){
                     } else {
                         model.log=model.log.concat(COLORS.red,"[!]: Data out: null\n",COLORS.resetColor);
                     }
+                    if(CIPHER_CONFIG.hash.printStack){
+                        model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                    }
                     model.log=model.log.concat("[*] EXIT "+name+"_Final"+"\n");
 
                     console.log(model.log);
@@ -540,6 +553,9 @@ function commonHMACInterceptor(){
             if(!this.enable)return;
             this.log=this.log.concat("[+] Data out len: "+this.mdLen,"\n");
             this.log=this.log.concat(COLORS.green,"[+] Data out:\n",print_arg(reval,this.mdLen),COLORS.resetColor,"\n");
+            if(CIPHER_CONFIG.hmac.printStack){
+                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+            }
             this.log=this.log.concat("[*] EXIT",name,"\n");
             console.log(this.log);
         }
@@ -596,7 +612,7 @@ function commonHMACInterceptor(){
 
                 }
             });
-        
+
         //void
         //      CCHmacFinal(CCHmacContext *ctx, void *macOut);
         let final=Module.findExportByName("libSystem.B.dylib",name+"Final");
@@ -634,7 +650,9 @@ function commonHMACInterceptor(){
                     model.log=model.log.concat("[+] Data out len: "+model.mdLen+"\n");
                     model.log=model.log.concat(COLORS.green,"[+] Data out:\n");
                     model.log=model.log.concat(print_arg(ptr(this.mdOut),model.mdLen),COLORS.resetColor,"\n");
-
+                    if(CIPHER_CONFIG.hmac.printStack){
+                        model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                    }
                     model.log=model.log.concat("[*] EXIT "+name+"Final"+"\n");
 
                     console.log(model.log);
