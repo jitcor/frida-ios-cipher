@@ -6,7 +6,7 @@
   "main": "agent/index.ts",
   "scripts": {
     "prepare": "npm run build",
-    "build": "rm -rf _agent.js & frida-compile agent/index.ts -o _agent.js -c"
+    "build": "frida-compile agent/index.ts -o _agent.js -c"
   },
   "devDependencies": {
     "@types/frida-gum": "^16.2.0",
