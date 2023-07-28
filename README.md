@@ -12,6 +12,8 @@ Intercept all cryptography-related functions on iOS with Frida Api.
 * [x] `MD2`,`MD4`,`MD5`
 * [x] `HMAC`
 * [x] `PBKDF`
+## Preview
+![image](./res/ios_cipher_preview.png)
 ## Instructions for use
 * You can customize the functions you want to intercept printing by turning them on (they are all turned on by default).
 * Print data limit (default maximum 240 bytes for a single piece of data, where there is no limit for key, hash and digest results)
