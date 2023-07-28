@@ -18,6 +18,7 @@ Intercept all cryptography-related functions on iOS with Frida Api.
 * and stack information (off by default)
 * Doesn't differentiate between OC or Swift, the api calls for encryption are the same for both languages
 ## Config
+> Configuration at the beginning of the [script](./agent/index.ts).
 ```js
 const CIPHER_CONFIG={
     "enable":true,//global enable
