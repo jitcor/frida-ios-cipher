@@ -71,10 +71,31 @@ const CIPHER_CONFIG={
 //common
 const COLORS = {
     "resetColor": "\x1b[0m",
+    "bold": "\x1b[1m",
+    "dim": "\x1b[2m",
+    "italic": "\x1b[3m",
+    "underline": "\x1b[4m",
+    "blink": "\x1b[5m",
+    "reverse": "\x1b[7m",
+    "hidden": "\x1b[8m",
+    "black": "\x1b[30m",
+    "red": "\x1b[31m",
     "green": "\x1b[32m",
     "yellow": "\x1b[33m",
-    "red": "\x1b[31m"
+    "blue": "\x1b[34m",
+    "magenta": "\x1b[35m",
+    "cyan": "\x1b[36m",
+    "white": "\x1b[37m",
+    "bgBlack": "\x1b[40m",
+    "bgRed": "\x1b[41m",
+    "bgGreen": "\x1b[42m",
+    "bgYellow": "\x1b[43m",
+    "bgBlue": "\x1b[44m",
+    "bgMagenta": "\x1b[45m",
+    "bgCyan": "\x1b[46m",
+    "bgWhite": "\x1b[47m"
 };
+
 const CC_MD2_DIGEST_LENGTH = 16
 const CC_MD4_DIGEST_LENGTH = 16
 const CC_MD5_DIGEST_LENGTH = 16
@@ -250,10 +271,10 @@ function commonCryptoInterceptor() {
                 this.log=this.log.concat(COLORS.green,"[*] ENTER CCCrypt",COLORS.resetColor);
                 this.log=this.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[args[0].toInt32()],COLORS.resetColor,"\n");
                 this.log=this.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[args[1].toInt32()],COLORS.resetColor,"\n");
-                this.log=this.log.concat("[+] CCOptions: " + CCOptions[args[2].toInt32()],"\n");
-                this.log=this.log.concat("[+] KeySize: " + CCKeySize[args[4].toInt32()],"\n");
-                this.log=this.log.concat("[+] Key: \n" + print_arg(args[3],args[4].toInt32()),"\n");
-                this.log=this.log.concat("[+] IV: \n" + print_arg(args[5],16),"\n");
+                this.log=this.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[args[2].toInt32()],COLORS.resetColor,"\n");
+                this.log=this.log.concat(COLORS.yellow,"[+] KeySize: " + CCKeySize[args[4].toInt32()],COLORS.resetColor,"\n");
+                this.log=this.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(args[3],args[4].toInt32()),COLORS.resetColor,"\n");
+                this.log=this.log.concat(COLORS.cyan,"[+] IV: \n" + print_arg(args[5],16),COLORS.resetColor,"\n");
                 let dataInLength = pointerToInt(args[7]);
                 let printLength=Math.min(dataInLength,CIPHER_CONFIG.crypto.maxDataLength);
                 this.log=this.log.concat("[+] Data len: ",printLength,"/",dataInLength,"\n");
@@ -268,12 +289,12 @@ function commonCryptoInterceptor() {
                 if(!this.enable)return;
                 let dataOutLen=pointerToInt(this.dataOutLength.readPointer());
                 let printOutLen=Math.min(dataOutLen,CIPHER_CONFIG.crypto.maxDataLength);
-                this.log=this.log.concat("[+] Data out len: ",printOutLen,"/",dataOutLen,"\n");
-                this.log=this.log.concat("[+] Data out: \n",print_arg(this.dataOut,printOutLen),"\n");
+                this.log=this.log.concat(COLORS.magenta,"[+] Data out len: ",printOutLen,"/",dataOutLen,"\n");
+                this.log=this.log.concat("[+] Data out: \n",print_arg(this.dataOut,printOutLen),"\n",COLORS.resetColor);
                 if(CIPHER_CONFIG.crypto.printStack) {
-                    this.log = this.log.concat("[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), "\n");
+                    this.log = this.log.concat(COLORS.blue,"[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor, "\n");
                 }
-                this.log=this.log.concat("[*] EXIT CCCrypt","\n");
+                this.log=this.log.concat(COLORS.green,"[*] EXIT CCCrypt",COLORS.resetColor,"\n");
             }
 
         });
@@ -299,14 +320,14 @@ function commonCryptoInterceptor() {
                 let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
                 cRefCache[pointerToInt(model.cRef)]=model;
                 if(!model.enable)return;
-                model.log=model.log.concat("[*] ENTER CCCryptorCreate","\n");
-                model.log=model.log.concat("[+] CCOperation: " + CCOperation[this.operation.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCOptions: " + CCOptions[this.options.toInt32()],"\n");
-                model.log=model.log.concat("[+] Key len: " + CCKeySize[this.keyLen.toInt32()],"\n");
-                model.log=model.log.concat("[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),"\n");
+                model.log=model.log.concat(COLORS.green,"[*] ENTER CCCryptorCreate",COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[this.operation.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[this.options.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.cyan,"[+] Key len: " + CCKeySize[this.keyLen.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),COLORS.resetColor,"\n");
                 if(pointerToInt(this.iv)!=0){
-                    model.log=model.log.concat("[+] Iv:\n" + print_arg(this.iv,16),"\n");
+                    model.log=model.log.concat(COLORS.cyan,"[+] Iv:\n" + print_arg(this.iv,16),COLORS.resetColor,"\n");
                 }else {
                     model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
                 }
@@ -351,22 +372,22 @@ function commonCryptoInterceptor() {
                 let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
                 cRefCache[pointerToInt(model.cRef)]=model;
                 if(!model.enable)return;
-                model.log=model.log.concat("[*] ENTER CCCryptorCreateWithMode","\n");
-                model.log=model.log.concat("[+] CCOperation: " + CCOperation[this.operation.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCMode: " + CCMode[this.mode.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCPadding: " + CCPadding[this.padding.toInt32()],"\n");
-                model.log=model.log.concat("[+] CCModeOptions: " + CCModeOptions[this.options.toInt32()],"\n");
+                model.log=model.log.concat(COLORS.green,"[*] ENTER CCCryptorCreateWithMode",COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[this.operation.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCMode: " + CCMode[this.mode.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCPadding: " + CCPadding[this.padding.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.yellow,"[+] CCModeOptions: " + CCModeOptions[this.options.toInt32()],COLORS.resetColor,"\n");
                 let tweakLen=this.tweakLen.toInt32();
                 if(tweakLen>0&&pointerToInt(this.tweak)!=0){
-                    model.log=model.log.concat("[+] tweak len: " + tweakLen,"\n");
-                    model.log=model.log.concat("[+] tweak: \n" + print_arg(this.tweak,pointerToInt(this.tweakLen)),"\n");
+                    model.log=model.log.concat(COLORS.cyan,"[+] tweak len: " + tweakLen,COLORS.resetColor,"\n");
+                    model.log=model.log.concat(COLORS.cyan,"[+] tweak: \n" + print_arg(this.tweak,pointerToInt(this.tweakLen)),COLORS.resetColor,"\n");
                 }
-                model.log=model.log.concat("[+] numRounds: " + this.numRounds.toInt32(),"\n");
-                model.log=model.log.concat("[+] Key len: " + CCKeySize[this.keyLen.toInt32()],"\n");
-                model.log=model.log.concat("[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),"\n");
+                model.log=model.log.concat(COLORS.cyan,"[+] numRounds: " + this.numRounds.toInt32(),COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.cyan,"[+] Key len: " + CCKeySize[this.keyLen.toInt32()],COLORS.resetColor,"\n");
+                model.log=model.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),COLORS.resetColor,"\n");
                 if(pointerToInt(this.iv)!=0){
-                    model.log=model.log.concat("[+] Iv:\n" + print_arg(this.iv,16),"\n");
+                    model.log=model.log.concat(COLORS.cyan,"[+] Iv:\n" + print_arg(this.iv,16),COLORS.resetColor,"\n");
                 }else {
                     model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
                 }
@@ -396,8 +417,7 @@ function commonCryptoInterceptor() {
                     return;
                 }
                 if(!model.enable)return;
-                model.originalLen+=this.dataLen;
-                model.originalOutLen+=this.outLen;
+                model.originalLen+=this.dataLen.toInt32();
                 let remainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalLen;
                 let dataLen = pointerToInt(this.dataLen);
                 if(dataLen>0&&remainingSpace>0){
@@ -409,6 +429,7 @@ function commonCryptoInterceptor() {
                 }
                 let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
                 let outLen=pointerToInt(this.outLen.readPointer());
+                model.originalOutLen+=outLen;
                 if(outLen>0&&outRemainingSpace>0){
                     let copyLength = Math.min(outLen, outRemainingSpace);
                     let tmpDataOut=Memory.alloc(copyLength);
@@ -439,10 +460,11 @@ function commonCryptoInterceptor() {
                     return;
                 }
                 if(!model.enable)return;
-                model.originalOutLen+=this.dataOutLen;
+
                 if(model.totalOutLen<CIPHER_CONFIG.crypto.maxDataLength){
                     let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
                     let outLen=pointerToInt(this.dataOutLen.readPointer());
+                    model.originalOutLen+=outLen;
                     if(outLen>0&&outRemainingSpace>0){
                         let copyLength=Math.min(outLen,outRemainingSpace);
                         let tmpDataOut=Memory.alloc(copyLength);
@@ -465,12 +487,12 @@ function commonCryptoInterceptor() {
                 });
                 model.log=model.log.concat("[+] Data len: "+model.totalLen+"/"+model.originalLen+"\n");
                 model.log=model.log.concat("[+] Data : \n",print_arg(totalData,model.totalLen),"\n");
-                model.log=model.log.concat("[+] Data out len: "+model.totalOutLen+"/"+model.originalOutLen+"\n");
-                model.log=model.log.concat("[+] Data out: \n",print_arg(totalOutData,model.totalOutLen),"\n");
+                model.log=model.log.concat(COLORS.magenta,"[+] Data out len: "+model.totalOutLen+"/"+model.originalOutLen+"\n");
+                model.log=model.log.concat("[+] Data out: \n",print_arg(totalOutData,model.totalOutLen),"\n",COLORS.resetColor);
                 if(CIPHER_CONFIG.crypto.printStack){
-                    model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                    model.log=model.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
                 }
-                model.log=model.log.concat("[*] EXIT CCCryptorFinal ","\n");
+                model.log=model.log.concat(COLORS.green,"[*] EXIT CCCryptorFinal ",COLORS.resetColor,"\n");
                 console.log(model.log);
             }
 
@@ -499,7 +521,7 @@ function commonHashInterceptor(name:string, length:number){
     Interceptor.attach(hash,{
         onEnter:function (args){
             this.log="";
-            this.log=this.log.concat("[*] ENTER ",name,"\n");
+            this.log=this.log.concat(COLORS.green,"[*] ENTER ",name,COLORS.resetColor,"\n");
             let dataLen=args[1].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hash.maxInputDataLength);
             this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
@@ -507,12 +529,12 @@ function commonHashInterceptor(name:string, length:number){
 
         },
         onLeave:function (reval){
-            this.log=this.log.concat(COLORS.green,"[+] Data out len: "+length,COLORS.resetColor,"\n");
-            this.log=this.log.concat(COLORS.green,"[+] Data out:\n",print_arg(reval,length),COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.magenta,"[+] Data out len: "+length,COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.magenta,"[+] Data out:\n",print_arg(reval,length),COLORS.resetColor,"\n");
             if(CIPHER_CONFIG.hash.printStack){
-                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat("[*] EXIT",name,"\n");
+            this.log=this.log.concat(COLORS.green,"[*] EXIT",name,COLORS.resetColor,"\n");
             console.log(this.log);
         }
     });
@@ -529,7 +551,7 @@ function commonHashInterceptor(name:string, length:number){
                 onEnter: function(args) {
                     let model={ctx:args[0],dataMap:[],totalLen:0,originalLen:0,log:""};
                     ctxCache[pointerToInt(args[0])]=model;
-                    model.log=model.log.concat("[*] ENTER "+name+"_Init\n");
+                    model.log=model.log.concat(COLORS.green,"[*] ENTER "+name+"_Init\n",COLORS.resetColor);
                 }
             });
 
@@ -594,16 +616,16 @@ function commonHashInterceptor(name:string, length:number){
                     model.log=model.log.concat(print_arg(totalData,model.totalLen),"\n");
 
                     if(pointerToInt(this.mdSha) !== 0) {
-                        model.log=model.log.concat(COLORS.green,"[+] Data out len: "+length+"\n");
+                        model.log=model.log.concat(COLORS.magenta,"[+] Data out len: "+length+"\n");
                         model.log=model.log.concat("[+] Data out:\n");
                         model.log=model.log.concat(print_arg(ptr(this.mdSha),length),"\n",COLORS.resetColor);
                     } else {
                         model.log=model.log.concat(COLORS.red,"[!]: Data out: null\n",COLORS.resetColor);
                     }
                     if(CIPHER_CONFIG.hash.printStack){
-                        model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                        model.log=model.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
                     }
-                    model.log=model.log.concat("[*] EXIT "+name+"_Final"+"\n");
+                    model.log=model.log.concat(COLORS.green,"[*] EXIT "+name+"_Final"+"\n",COLORS.resetColor);
 
                     console.log(model.log);
                 }
@@ -649,10 +671,10 @@ function commonHMACInterceptor(){
             if(!this.enable)return;
             this.mdLen=CCHmacAlgorithmLength[args[0].toInt32()];
             this.log="";
-            this.log=this.log.concat("[*] ENTER ",name,"\n");
+            this.log=this.log.concat(COLORS.green,"[*] ENTER ",name,"\n");
             this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCHmacAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
-            this.log=this.log.concat("[+] Key len: ",args[2].toInt32(),"\n");
-            this.log=this.log.concat(COLORS.green,"[+] Key : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.cyan,"[+] Key len: ",args[2].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Key : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
 
             let dataLen=args[4].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hmac.maxInputDataLength);
@@ -662,12 +684,12 @@ function commonHMACInterceptor(){
         },
         onLeave:function (reval){
             if(!this.enable)return;
-            this.log=this.log.concat("[+] Data out len: "+this.mdLen,"\n");
-            this.log=this.log.concat(COLORS.green,"[+] Data out:\n",print_arg(reval,this.mdLen),COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.magenta,"[+] Data out len: "+this.mdLen,COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.magenta,"[+] Data out:\n",print_arg(reval,this.mdLen),COLORS.resetColor,"\n");
             if(CIPHER_CONFIG.hmac.printStack){
-                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat("[*] EXIT",name,"\n");
+            this.log=this.log.concat(COLORS.green,"[*] EXIT",name,COLORS.resetColor,"\n");
             console.log(this.log);
         }
     });
@@ -687,10 +709,10 @@ function commonHMACInterceptor(){
                     let model={ctx:args[0],dataMap:[],totalLen:0,originalLen:0,log:"",mdLen:CCHmacAlgorithmLength[args[1].toInt32()],enable:checkHMACAlgorithmEnable(args[1].toInt32())};
                     ctxCache[pointerToInt(args[0])]=model;
                     if(!model.enable)return;
-                    model.log=model.log.concat("[*] ENTER "+name+"Init\n");
+                    model.log=model.log.concat(COLORS.green,"[*] ENTER "+name+"Init\n",COLORS.resetColor);
                     model.log=model.log.concat(COLORS.yellow,"[+] Algorithm: "+CCHmacAlgorithm[args[1].toInt32()]+"\n",COLORS.resetColor);
-                    model.log=model.log.concat("[+] Key len: "+args[3].toInt32()+"\n");
-                    model.log=model.log.concat(COLORS.green,"[+] Key: \n"+print_arg(args[2],pointerToInt(args[3]))+"\n",COLORS.resetColor);
+                    model.log=model.log.concat(COLORS.cyan,"[+] Key len: "+args[3].toInt32()+COLORS.resetColor+"\n");
+                    model.log=model.log.concat(COLORS.cyan,"[+] Key: \n"+print_arg(args[2],pointerToInt(args[3]))+"\n",COLORS.resetColor);
                 }
             });
 
@@ -758,13 +780,13 @@ function commonHMACInterceptor(){
                     model.log=model.log.concat("[+] Data :\n");
                     model.log=model.log.concat(print_arg(totalData,model.totalLen),"\n");
 
-                    model.log=model.log.concat("[+] Data out len: "+model.mdLen+"\n");
-                    model.log=model.log.concat(COLORS.green,"[+] Data out:\n");
-                    model.log=model.log.concat(print_arg(ptr(this.mdOut),model.mdLen),COLORS.resetColor,"\n");
+                    model.log=model.log.concat(COLORS.magenta,"[+] Data out len: "+model.mdLen+"\n");
+                    model.log=model.log.concat("[+] Data out:\n");
+                    model.log=model.log.concat(print_arg(ptr(this.mdOut),model.mdLen),"\n",COLORS.resetColor);
                     if(CIPHER_CONFIG.hmac.printStack){
-                        model.log=model.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                        model.log=model.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
                     }
-                    model.log=model.log.concat("[*] EXIT "+name+"Final"+"\n");
+                    model.log=model.log.concat(COLORS.green,"[*] EXIT "+name+"Final"+"\n",COLORS.resetColor);
 
                     console.log(model.log);
                 }
@@ -789,22 +811,22 @@ function commonPBKDFInterceptor(){
             this.derivedKey=args[7];
             this.derivedKeyLen=args[8];
             this.log="";
-            this.log=this.log.concat("[*] ENTER CCKeyDerivationPBKDF","\n");
+            this.log=this.log.concat(COLORS.green,"[*] ENTER CCKeyDerivationPBKDF",COLORS.resetColor,"\n");
             this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCPBKDFAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
             this.log=this.log.concat(COLORS.yellow,"[+] PseudoRandomAlgorithm: ",CCPseudoRandomAlgorithm[args[5].toInt32()],"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.yellow,"[+] Rounds: ",pointerToInt(args[6]),"\n",COLORS.resetColor);
-            this.log=this.log.concat("[+] Password len: ",args[2].toInt32(),"\n");
-            this.log=this.log.concat(COLORS.green,"[+] Password : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
-            this.log=this.log.concat("[+] Salt len: ",args[4].toInt32(),"\n");
-            this.log=this.log.concat(COLORS.green,"[+] Salt : \n",print_arg(args[3],args[4].toInt32()),"\n",COLORS.resetColor);
-            this.log=this.log.concat("[+] DerivedKey len: ",args[8].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Rounds: ",pointerToInt(args[6]),"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.cyan,"[+] Password len: ",args[2].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Password : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.cyan,"[+] Salt len: ",args[4].toInt32(),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Salt : \n",print_arg(args[3],args[4].toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.cyan,"[+] DerivedKey len: ",args[8].toInt32(),"\n");
         },
         onLeave:function (reval){
-            this.log=this.log.concat(COLORS.green,"[+] DerivedKey : \n",print_arg(this.derivedKey,this.derivedKey.toInt32()),"\n",COLORS.resetColor);
+            this.log=this.log.concat(COLORS.cyan,"[+] DerivedKey : \n",print_arg(this.derivedKey,this.derivedKey.toInt32()),"\n",COLORS.resetColor);
             if(CIPHER_CONFIG.pbkdf.printStack){
-                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat("[*] EXIT CCKeyDerivationPBKDF","\n");
+            this.log=this.log.concat(COLORS.green,"[*] EXIT CCKeyDerivationPBKDF",COLORS.resetColor,"\n");
             console.log(this.log);
         }
     });
@@ -819,20 +841,20 @@ function commonPBKDFInterceptor(){
     Interceptor.attach(CCCalibratePBKDF,{
         onEnter:function (args){
             this.log="";
-            this.log=this.log.concat("[*] ENTER CCCalibratePBKDF","\n");
+            this.log=this.log.concat(COLORS.green,"[*] ENTER CCCalibratePBKDF",COLORS.resetColor,"\n");
             this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCPBKDFAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
             this.log=this.log.concat(COLORS.yellow,"[+] PseudoRandomAlgorithm: ",CCPseudoRandomAlgorithm[args[3].toInt32()],"\n",COLORS.resetColor);
-            this.log=this.log.concat("[+] Password len: ",args[1].toInt32(),"\n");
-            this.log=this.log.concat("[+] Salt len: ",args[2].toInt32(),"\n");
-            this.log=this.log.concat("[+] DerivedKey len: ",args[4].toInt32(),"\n");
-            this.log=this.log.concat("[+] Msec : ",pointerToInt(args[5]),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Password len: ",args[1].toInt32(),COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Salt len: ",args[2].toInt32(),COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] DerivedKey len: ",args[4].toInt32(),COLORS.resetColor,"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] Msec : ",pointerToInt(args[5]),COLORS.resetColor,"\n");
         },
         onLeave:function (reval){
-            this.log=this.log.concat("[+] IterNum : \n",pointerToInt(reval),"\n");
+            this.log=this.log.concat(COLORS.cyan,"[+] IterNum : \n",pointerToInt(reval),COLORS.resetColor,"\n");
             if(CIPHER_CONFIG.pbkdf.printStack){
-                this.log=this.log.concat("[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
+                this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat("[*] EXIT CCCalibratePBKDF","\n");
+            this.log=this.log.concat(COLORS.green,"[*] EXIT CCCalibratePBKDF",COLORS.resetColor,"\n");
             console.log(this.log);
         }
     });
