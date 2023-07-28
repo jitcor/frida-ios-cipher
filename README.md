@@ -3,15 +3,15 @@
 ## Introduction
 Intercept all cryptography-related functions on iOS with Frida Api.
 ## Support Algorithm
-* [x] AES
-* [x] DES,3DES
-* [x] CAST(What it's?)
-* [x] RC2,RC4
-* [x] Blowfish
-* [x] SHA1,SHA224,SHA256,SHA384,SHA512
-* [x] MD2,MD4,MD5
-* [x] HMAC
-* [x] PBKDF
+* [x] `AES`
+* [x] `DES`,`3DES`
+* [x] `CAST`(What it's?)
+* [x] `RC2`,`RC4`
+* [x] `Blowfish`
+* [x] `SHA1`,`SHA224`,`SHA256`,`SHA384`,`SHA512`
+* [x] `MD2`,`MD4`,`MD5`
+* [x] `HMAC`
+* [x] `PBKDF`
 ## Config
 ```js
 const CIPHER_CONFIG={
