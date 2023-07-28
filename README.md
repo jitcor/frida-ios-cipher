@@ -84,3 +84,19 @@ CCCryptorStatus
 * There are also a couple of CCDigest functions that are too cold to be added later if encountered
 * There are also a couple of random functions as well as UUIDs, which seem to be strictly within the scope of cryptography, to which I'll add later on
 * As for asymmetric encryption, I can't seem to find an official implementation at the moment
+## Consultation
+ * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
+ * https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
+ * https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_SHA.3cc.html#//apple_ref/doc/man/3cc/CC_SHA
+ * https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CCCryptor.3cc.html#//apple_ref/doc/man/3cc/CCCryptor
+ * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-55010/CommonCrypto/CommonKeyDerivation.h.auto.html
+ * https://www.cnblogs.com/cocoajin/p/6150203.html
+ * https://frida.re/docs/javascript-api/
+ * https://codeshare.frida.re/@xperylab/cccrypt-dump/
+ * https://github.com/federicodotta/Brida
+ * https://github.com/sensepost/objection/blob/master/agent/src/ios/crypto.ts
+ * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/CommonCryptor.c.auto.html
+ * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60026/CommonCrypto/CommonCryptor.h.auto.html
+ * https://www.jianshu.com/p/8896ed432dff
+ * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
+ * https://blog.csdn.net/q187543/article/details/103920969
