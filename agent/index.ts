@@ -248,7 +248,6 @@ function commonCryptoInterceptor() {
                 if(!this.enable)return;
                 this.log="";
                 this.log=this.log.concat(COLORS.green,"[*] ENTER CCCrypt",COLORS.resetColor);
-                this.log=this.log.concat(Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),"\n");
                 this.log=this.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[args[0].toInt32()],COLORS.resetColor,"\n");
                 this.log=this.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[args[1].toInt32()],COLORS.resetColor,"\n");
                 this.log=this.log.concat("[+] CCOptions: " + CCOptions[args[2].toInt32()],"\n");
