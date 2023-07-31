@@ -19,6 +19,15 @@ Intercept all cryptography-related functions on iOS with Frida Api.
 * Print data limit (default maximum 240 bytes for a single piece of data, where there is no limit for key, hash and digest results)
 * and stack information (off by default)
 * Doesn't differentiate between OC or Swift, the api calls for encryption are the same for both languages
+## Simple to use
+* Spawn mode
+```bash
+frida -U --codeshare Humenger/frida-ios-cipher -f "xxx.xxx.xxx" --no-pause
+```
+* Attach mode
+```bash
+frida -U --codeshare Humenger/frida-ios-cipher -n "app name"
+```
 ## Config
 > Configuration at the beginning of the [script](./agent/index.ts).
 ```js
@@ -68,6 +77,7 @@ const CIPHER_CONFIG={
 
 ```
 > Because printing the stack may lead to program execution exceptions, printStack is off by default, and you can turn it on by yourself if you need to.
+
 ## Build
 ```bash
 npm install 
