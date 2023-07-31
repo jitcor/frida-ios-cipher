@@ -1,3 +1,25 @@
+/*************************************************************************************
+ * Name: frida-ios-cipher
+ * OS: iOS
+ * Author: @humenger
+ * Source: https://github.com/humenger/frida-ios-cipher
+ * Desc: Intercept all cryptography-related functions on iOS with Frida Api.
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
+ * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
+ * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_SHA.3cc.html#//apple_ref/doc/man/3cc/CC_SHA
+ * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CCCryptor.3cc.html#//apple_ref/doc/man/3cc/CCCryptor
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-55010/CommonCrypto/CommonKeyDerivation.h.auto.html
+ * refs:https://www.cnblogs.com/cocoajin/p/6150203.html
+ * refs:https://frida.re/docs/javascript-api/
+ * refs:https://codeshare.frida.re/@xperylab/cccrypt-dump/
+ * refs:https://github.com/federicodotta/Brida
+ * refs:https://github.com/sensepost/objection/blob/master/agent/src/ios/crypto.ts
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/CommonCryptor.c.auto.html
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60026/CommonCrypto/CommonCryptor.h.auto.html
+ * refs:https://www.jianshu.com/p/8896ed432dff
+ * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
+ * refs:https://blog.csdn.net/q187543/article/details/103920969
+ **************************************************************************************/
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 
