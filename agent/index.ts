@@ -24,6 +24,7 @@
 //config
 const CIPHER_CONFIG={
     "enable":true,//global enable
+    "highlighting":true,//syntax highlighting
     "crypto":{
         "enable":true,//crypto enable
         "maxDataLength":240,//Maximum length of single data printout
@@ -35,6 +36,7 @@ const CIPHER_CONFIG={
         "rc4":true,
         "rc2":true,
         "blowfish":true,
+        "filter":[]
     },
     "hash":{
         "enable":true,//hash enable
@@ -47,7 +49,8 @@ const CIPHER_CONFIG={
         "sha224":true,
         "sha256":true,
         "sha384":true,
-        "sha512":true
+        "sha512":true,
+        "filter":[]
     },
     "hmac":{
         "enable":true,//hmac enable
@@ -59,10 +62,12 @@ const CIPHER_CONFIG={
         "sha256":true,
         "sha384":true,
         "sha512":true,
+        "filter":[]
     },
     "pbkdf":{
         "enable":true,
         "printStack":false,
+        "filter":[]
     }
 }
 
@@ -70,30 +75,30 @@ const CIPHER_CONFIG={
 
 //common
 const COLORS = {
-    "resetColor": "\x1b[0m",
-    "bold": "\x1b[1m",
-    "dim": "\x1b[2m",
-    "italic": "\x1b[3m",
-    "underline": "\x1b[4m",
-    "blink": "\x1b[5m",
-    "reverse": "\x1b[7m",
-    "hidden": "\x1b[8m",
-    "black": "\x1b[30m",
-    "red": "\x1b[31m",
-    "green": "\x1b[32m",
-    "yellow": "\x1b[33m",
-    "blue": "\x1b[34m",
-    "magenta": "\x1b[35m",
-    "cyan": "\x1b[36m",
-    "white": "\x1b[37m",
-    "bgBlack": "\x1b[40m",
-    "bgRed": "\x1b[41m",
-    "bgGreen": "\x1b[42m",
-    "bgYellow": "\x1b[43m",
-    "bgBlue": "\x1b[44m",
-    "bgMagenta": "\x1b[45m",
-    "bgCyan": "\x1b[46m",
-    "bgWhite": "\x1b[47m"
+    "resetColor": CIPHER_CONFIG.highlighting?"\x1b[0m":"",
+    "bold": CIPHER_CONFIG.highlighting?"\x1b[1m":"",
+    "dim": CIPHER_CONFIG.highlighting?"\x1b[2m":"",
+    "italic": CIPHER_CONFIG.highlighting?"\x1b[3m":"",
+    "underline": CIPHER_CONFIG.highlighting?"\x1b[4m":"",
+    "blink": CIPHER_CONFIG.highlighting?"\x1b[5m":"",
+    "reverse": CIPHER_CONFIG.highlighting?"\x1b[7m":"",
+    "hidden": CIPHER_CONFIG.highlighting?"\x1b[8m":"",
+    "black": CIPHER_CONFIG.highlighting?"\x1b[30m":"",
+    "red": CIPHER_CONFIG.highlighting?"\x1b[31m":"",
+    "green": CIPHER_CONFIG.highlighting?"\x1b[32m":"",
+    "yellow": CIPHER_CONFIG.highlighting?"\x1b[33m":"",
+    "blue": CIPHER_CONFIG.highlighting?"\x1b[34m":"",
+    "magenta": CIPHER_CONFIG.highlighting?"\x1b[35m":"",
+    "cyan": CIPHER_CONFIG.highlighting?"\x1b[36m":"",
+    "white": CIPHER_CONFIG.highlighting?"\x1b[37m":"",
+    "bgBlack": CIPHER_CONFIG.highlighting?"\x1b[40m":"",
+    "bgRed": CIPHER_CONFIG.highlighting?"\x1b[41m":"",
+    "bgGreen": CIPHER_CONFIG.highlighting?"\x1b[42m":"",
+    "bgYellow": CIPHER_CONFIG.highlighting?"\x1b[43m":"",
+    "bgBlue": CIPHER_CONFIG.highlighting?"\x1b[44m":"",
+    "bgMagenta": CIPHER_CONFIG.highlighting?"\x1b[45m":"",
+    "bgCyan": CIPHER_CONFIG.highlighting?"\x1b[46m":"",
+    "bgWhite": CIPHER_CONFIG.highlighting?"\x1b[47m":""
 };
 
 const CC_MD2_DIGEST_LENGTH = 16
@@ -106,38 +111,44 @@ const CC_SHA384_DIGEST_LENGTH=48;
 const CC_SHA512_DIGEST_LENGTH=64;
 
 const CCOperation:{[key:number]:string}={
-    0:"kCCEncrypt",
-    1:"kCCEncrypt",
+    0: "kCCEncrypt",
+    1: "kCCEncrypt",
+    3: "kCCBoth"//Private Cryptor direction (op)
 };
-const CCAlgorithm:{[key:number]:string}={
-    0:"kCCAlgorithmAES128",
-    1:"kCCAlgorithmDES",
-    2:"kCCAlgorithm3DES",
-    3:"kCCAlgorithmCAST",
-    4:"kCCAlgorithmRC4",
-    5:"kCCAlgorithmRC2",
-    6:"kCCAlgorithmBlowfish"
+const CCAlgorithm:{[key:number]:string}= {
+    0: "kCCAlgorithmAES",
+    1: "kCCAlgorithmDES",
+    2: "kCCAlgorithm3DES",
+    3: "kCCAlgorithmCAST",
+    4: "kCCAlgorithmRC4",
+    5: "kCCAlgorithmRC2",
+    6: "kCCAlgorithmBlowfish"
 };
 
 const CCOptions:{[key:number]:string}={
+    //options for block ciphers
     1:"kCCOptionPKCS7Padding",
     2:"kCCOptionECBMode"
+    //stream ciphers currently have no options
 };
 const CCMode:{[key:number]:string}={
-    1:"kCCModeECB",
-    2:"kCCModeCBC",
-    3:"kCCModeCFB",
-    4:"kCCModeCTR",
-    5:"kCCModeF8", // Unimplemented for now (not included)
-    6:"kCCModeLRW", // Unimplemented for now (not included)
-    7:"kCCModeOFB",
-    8:"kCCModeXTS",
-    9:"kCCModeRC4",
-    10:"kCCModeCFB8",
+    1: "kCCModeECB",
+    2: "kCCModeCBC",
+    3: "kCCModeCFB",
+    4: "kCCModeCTR",
+    5: "kCCModeF8", // Unimplemented for now (not included)
+    6: "kCCModeLRW", // Unimplemented for now (not included)
+    7: "kCCModeOFB",
+    8: "kCCModeXTS",
+    9: "kCCModeRC4",
+    10: "kCCModeCFB8",
+    11: "kCCModeGCM",
+    12: "kCCModeCCM"
 }
-const CCPadding:{[key:number]:string}={
-    0:"ccNoPadding",
-    1:"ccPKCS7Padding",
+const CCPadding:{[key:number]:string}= {
+    0: "ccNoPadding",
+    1: "ccPKCS7Padding",
+    12: "ccCBCCTS3"//Private Paddings
 }
 const CCModeOptions:{[key:number]:string}={
     0x0001:"kCCModeOptionCTR_LE",
@@ -186,7 +197,7 @@ const CCPBKDFAlgorithm:{[key:number]:string}={
 function print_arg(addr,len=240) {
     try {
         if(addr==null)return "\n";
-        return "\n"+hexdump(addr,{length:len}) + "\n";
+        return "\n"+(hexdump(addr,{length:len})) + "\n";
     } catch (e) {
         if(e instanceof Error){
             console.error("print_arg error:",e.stack);
@@ -205,6 +216,45 @@ function pointerToInt(ptr:NativePointer){
         return 0;
     }
 }
+
+function filterLog(msg:string,filter:string[]){
+    if(filter==null||filter.length==0){
+        console.log(msg);
+    }else {
+        var hasFilter=false;
+        for (let value of filter) {
+            if(value==null||value.length==0)continue;
+            hasFilter=true;
+            if(msg.indexOf(value)>=0){
+                console.log(msg);
+                return;
+            }
+        }
+        if(!hasFilter){
+            console.log(msg);
+        }
+    }
+
+}
+
+function fixHexDump(hex:string){
+    // @ts-ignore
+    var ret="";
+    const lines = hex.split("\n");
+    for (const line of lines) {
+        const parts = line.split("");
+        if(parts.length<=58){
+            parts.splice(parts.length,0,'\n');
+        }else {
+            parts.splice(parts.length,0,'|\n');
+            parts.splice(59,0,'|');
+        }
+        parts.splice(0,2);
+        ret+=parts.join("");
+    }
+    return ret;
+}
+
 
 //crypto
 interface CCCryptorModel{
@@ -323,7 +373,7 @@ function commonCryptoInterceptor() {
                 model.log=model.log.concat(COLORS.green,"[*] ENTER CCCryptorCreate",COLORS.resetColor,"\n");
                 model.log=model.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[this.operation.toInt32()],COLORS.resetColor,"\n");
                 model.log=model.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[this.options.toInt32()],COLORS.resetColor,"\n");
+                // model.log=model.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[this.options.toInt32()],COLORS.resetColor,"\n");
                 model.log=model.log.concat(COLORS.cyan,"[+] Key len: " + CCKeySize[this.keyLen.toInt32()],COLORS.resetColor,"\n");
                 model.log=model.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),COLORS.resetColor,"\n");
                 if(pointerToInt(this.iv)!=0){
@@ -493,7 +543,7 @@ function commonCryptoInterceptor() {
                     model.log=model.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
                 }
                 model.log=model.log.concat(COLORS.green,"[*] EXIT CCCryptorFinal ",COLORS.resetColor,"\n");
-                console.log(model.log);
+                filterLog(model.log,CIPHER_CONFIG.crypto.filter);
             }
 
         });
@@ -524,7 +574,7 @@ function commonHashInterceptor(name:string, length:number){
             this.log=this.log.concat(COLORS.green,"[*] ENTER ",name,COLORS.resetColor,"\n");
             let dataLen=args[1].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hash.maxInputDataLength);
-            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data len: ",printLen,"/",dataLen,"\n");
             this.log=this.log.concat("[+] Data: \n",print_arg(args[0],printLen),"\n")
 
         },
@@ -534,8 +584,8 @@ function commonHashInterceptor(name:string, length:number){
             if(CIPHER_CONFIG.hash.printStack){
                 this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat(COLORS.green,"[*] EXIT",name,COLORS.resetColor,"\n");
-            console.log(this.log);
+            this.log=this.log.concat(COLORS.green,"[*] EXIT ",name,COLORS.resetColor,"\n");
+            filterLog(this.log,CIPHER_CONFIG.hash.filter);
         }
     });
     (function (){
@@ -627,7 +677,7 @@ function commonHashInterceptor(name:string, length:number){
                     }
                     model.log=model.log.concat(COLORS.green,"[*] EXIT "+name+"_Final"+"\n",COLORS.resetColor);
 
-                    console.log(model.log);
+                    filterLog(model.log,CIPHER_CONFIG.hash.filter);
                 }
             });
     })();
@@ -678,7 +728,7 @@ function commonHMACInterceptor(){
 
             let dataLen=args[4].toInt32();
             let printLen=Math.min(dataLen,CIPHER_CONFIG.hmac.maxInputDataLength);
-            this.log=this.log.concat("[+] Data len:",printLen,"/",dataLen,"\n");
+            this.log=this.log.concat("[+] Data len: ",printLen,"/",dataLen,"\n");
             this.log=this.log.concat("[+] Data: \n",print_arg(args[3],printLen),"\n")
             this.macOut=args[5];
         },
@@ -689,8 +739,8 @@ function commonHMACInterceptor(){
             if(CIPHER_CONFIG.hmac.printStack){
                 this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
-            this.log=this.log.concat(COLORS.green,"[*] EXIT",name,COLORS.resetColor,"\n");
-            console.log(this.log);
+            this.log=this.log.concat(COLORS.green,"[*] EXIT ",name,COLORS.resetColor,"\n");
+            filterLog(this.log,CIPHER_CONFIG.hmac.filter);
         }
     });
     (function (){
@@ -788,7 +838,7 @@ function commonHMACInterceptor(){
                     }
                     model.log=model.log.concat(COLORS.green,"[*] EXIT "+name+"Final"+"\n",COLORS.resetColor);
 
-                    console.log(model.log);
+                    filterLog(model.log,CIPHER_CONFIG.hmac.filter);
                 }
             });
     })();
@@ -827,7 +877,7 @@ function commonPBKDFInterceptor(){
                 this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
             this.log=this.log.concat(COLORS.green,"[*] EXIT CCKeyDerivationPBKDF",COLORS.resetColor,"\n");
-            console.log(this.log);
+            filterLog(this.log,CIPHER_CONFIG.pbkdf.filter);
         }
     });
     //uint
@@ -855,7 +905,7 @@ function commonPBKDFInterceptor(){
                 this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
             this.log=this.log.concat(COLORS.green,"[*] EXIT CCCalibratePBKDF",COLORS.resetColor,"\n");
-            console.log(this.log);
+            filterLog(this.log,CIPHER_CONFIG.pbkdf.filter);
         }
     });
 }
