@@ -272,7 +272,20 @@ interface CCCryptorModel{
     totalOutLen:number,
     originalLen:number,
     originalOutLen:number,
-    log:string
+    log: string,
+    finish: boolean
+
+    CCOperation: string,
+    CCMode: string,
+    CCAlgorithm: string,
+    CCKeySize: string,
+    Key: string,
+    Iv: string,
+    CCPadding: string,
+    CCModeOptions: string,
+    TweakLen: string,
+    Tweak: string,
+    NumRounds: string
 }
 function commonCryptoInterceptor() {
     function checkCryptoAlgorithmEnable(algorithm: number) {
@@ -358,26 +371,45 @@ function commonCryptoInterceptor() {
     Interceptor.attach(CCCryptorCreate,
         {
             onEnter: function(args) {
-                this.cRefPtr=args[6];
-                this.operation=args[0];
-                this.algorithm=args[1];
-                this.options=args[2];
-                this.key=args[3];
-                this.keyLen=args[4];
-                this.iv=args[5];
+                this.params = [];
+                for (let i = 0; i < 7; i++) {
+                    this.params.push(args[i]);
+                }
             },
             onLeave:function (reval) {
-                let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
+                let model: CCCryptorModel = {
+                    enable: checkCryptoAlgorithmEnable(this.params[1]),
+                    cRef: this.params[6].readPointer(),
+                    dataMap: [],
+                    dataOutMap: [],
+                    totalLen: 0,
+                    totalOutLen: 0,
+                    originalLen: 0,
+                    originalOutLen: 0,
+                    log: "",
+                    finish: false,
+                    CCAlgorithm: "",
+                    CCOperation: "",
+                    CCMode: "",
+                    CCKeySize: "",
+                    CCModeOptions: "",
+                    CCPadding: "",
+                    Key: "",
+                    Iv: "null",
+                    Tweak: "",
+                    TweakLen: "",
+                    NumRounds: ""
+                };
                 cRefCache[pointerToInt(model.cRef)]=model;
                 if(!model.enable)return;
                 model.log=model.log.concat(COLORS.green,"[*] ENTER CCCryptorCreate",COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[this.operation.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],COLORS.resetColor,"\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCOperation: ", model.CCOperation = CCOperation[this.params[0].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCAlgorithm: " + CCAlgorithm[this.params[1].toInt32()], COLORS.resetColor, "\n");
                 // model.log=model.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[this.options.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.cyan,"[+] Key len: " + CCKeySize[this.keyLen.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),COLORS.resetColor,"\n");
-                if(pointerToInt(this.iv)!=0){
-                    model.log=model.log.concat(COLORS.cyan,"[+] Iv:\n" + print_arg(this.iv,16),COLORS.resetColor,"\n");
+                model.log = model.log.concat(COLORS.cyan, "[+] Key len: ", model.CCKeySize = CCKeySize[this.params[4].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.cyan, "[+] Key: \n", model.Key = print_arg(this.params[3], pointerToInt(this.params[4])), COLORS.resetColor, "\n");
+                if (pointerToInt(this.params[5]) != 0) {
+                    model.log = model.log.concat(COLORS.cyan, "[+] Iv:\n", model.Iv = print_arg(this.params[5], 16), COLORS.resetColor, "\n");
                 }else {
                     model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
                 }
@@ -404,40 +436,59 @@ function commonCryptoInterceptor() {
     Interceptor.attach(CCCryptorCreateWithMode,
         {
             onEnter: function(args) {
-                this.cRefPtr=args[11];
-                this.operation=args[0];
-                this.mode=args[1];
-                this.algorithm=args[2];
-                this.padding=args[3];
-                this.iv=args[4];
-                this.key=args[5];
-                this.keyLen=args[6];
-                this.tweak=args[7];
-                this.tweakLen=args[8];
-                this.numRounds=args[9];
-                this.options=args[10];
-
+                this.params = [];
+                for (let i = 0; i < 12; i++) {
+                    this.params.push(args[i]);
+                }
             },
             onLeave:function (reval) {
-                let model:CCCryptorModel={enable:checkCryptoAlgorithmEnable(this.algorithm),cRef:this.cRefPtr.readPointer(),dataMap:[],dataOutMap:[],totalLen:0,totalOutLen:0,originalLen:0,originalOutLen:0,log:""};
+                let model: CCCryptorModel = {
+                    enable: checkCryptoAlgorithmEnable(this.params[2]),
+                    cRef: ptr(0),
+                    dataMap: [],
+                    dataOutMap: [],
+                    totalLen: 0,
+                    totalOutLen: 0,
+                    originalLen: 0,
+                    originalOutLen: 0,
+                    log: "",
+                    finish: false,
+                    CCAlgorithm: "",
+                    CCOperation: "",
+                    CCMode: "",
+                    CCKeySize: "",
+                    CCModeOptions: "",
+                    CCPadding: "",
+                    Key: "",
+                    Iv: "null",
+                    Tweak: "",
+                    TweakLen: "",
+                    NumRounds: ""
+                };
+                try {
+                    model.cRef = this.params[11].readPointer();
+                } catch (e) {
+                    console.log("Error: read CCCryptorRef failed:", e);
+                    return;
+                }
                 cRefCache[pointerToInt(model.cRef)]=model;
                 if(!model.enable)return;
                 model.log=model.log.concat(COLORS.green,"[*] ENTER CCCryptorCreateWithMode",COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCOperation: " + CCOperation[this.operation.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCMode: " + CCMode[this.mode.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCAlgorithm: " + CCAlgorithm[this.algorithm.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCPadding: " + CCPadding[this.padding.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.yellow,"[+] CCModeOptions: " + CCModeOptions[this.options.toInt32()],COLORS.resetColor,"\n");
-                let tweakLen=this.tweakLen.toInt32();
-                if(tweakLen>0&&pointerToInt(this.tweak)!=0){
-                    model.log=model.log.concat(COLORS.cyan,"[+] tweak len: " + tweakLen,COLORS.resetColor,"\n");
-                    model.log=model.log.concat(COLORS.cyan,"[+] tweak: \n" + print_arg(this.tweak,pointerToInt(this.tweakLen)),COLORS.resetColor,"\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCOperation: ", model.CCOperation = CCOperation[this.params[0].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCMode: ", model.CCMode = CCMode[this.params[1].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCAlgorithm: ", model.CCAlgorithm = CCAlgorithm[this.params[2].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCPadding: ", model.CCPadding = CCPadding[this.params[3].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] CCModeOptions: ", model.CCModeOptions = CCModeOptions[this.params[10].toInt32()], COLORS.resetColor, "\n");
+                let tweakLen = this.params[8].toInt32();
+                if (tweakLen > 0 && pointerToInt(this.params[7]) != 0) {
+                    model.log = model.log.concat(COLORS.cyan, "[+] tweak len: ", model.TweakLen = tweakLen, COLORS.resetColor, "\n");
+                    model.log = model.log.concat(COLORS.cyan, "[+] tweak: \n", model.Tweak = print_arg(this.params[7], pointerToInt(this.params[8])), COLORS.resetColor, "\n");
                 }
-                model.log=model.log.concat(COLORS.cyan,"[+] numRounds: " + this.numRounds.toInt32(),COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.cyan,"[+] Key len: " + CCKeySize[this.keyLen.toInt32()],COLORS.resetColor,"\n");
-                model.log=model.log.concat(COLORS.cyan,"[+] Key: \n" + print_arg(this.key,pointerToInt(this.keyLen)),COLORS.resetColor,"\n");
-                if(pointerToInt(this.iv)!=0){
-                    model.log=model.log.concat(COLORS.cyan,"[+] Iv:\n" + print_arg(this.iv,16),COLORS.resetColor,"\n");
+                model.log = model.log.concat(COLORS.cyan, "[+] numRounds: ", model.NumRounds = this.params[9].toInt32(), COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.cyan, "[+] Key len: ", model.CCKeySize = CCKeySize[this.params[6].toInt32()], COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.cyan, "[+] Key: \n", model.Key = print_arg(this.params[5], pointerToInt(this.params[6])), COLORS.resetColor, "\n");
+                if (pointerToInt(this.params[4]) != 0) {
+                    model.log = model.log.concat(COLORS.cyan, "[+] Iv:\n", model.Iv = print_arg(this.params[4], 16), COLORS.resetColor, "\n");
                 }else {
                     model.log=model.log.concat(COLORS.red,"[!] Iv: null","\n",COLORS.resetColor);
                 }
@@ -453,37 +504,80 @@ function commonCryptoInterceptor() {
     Interceptor.attach(CCCryptorUpdate,
         {
             onEnter: function(args) {
-                this.outLen = args[5];
-                this.out = args[3];
-                this.cRef=args[0];
-                this.dataLen=args[2];
-                this.data=args[1];
+                this.params = [];
+                for (let i = 0; i < 6; i++) {
+                    this.params.push(args[i]);
+                }
             },
 
             onLeave: function(retval) {
-                let model:CCCryptorModel=cRefCache[pointerToInt(this.cRef)];
+                let model: CCCryptorModel = cRefCache[pointerToInt(this.params[0])];
                 if(model==null){
-                    console.error("CCCryptorUpdate model is null");
-                    return;
+                    model = {
+                        enable: CIPHER_CONFIG.crypto.enable,
+                        cRef: this.params[0],
+                        dataMap: [],
+                        dataOutMap: [],
+                        totalLen: 0,
+                        totalOutLen: 0,
+                        originalLen: 0,
+                        originalOutLen: 0,
+                        log: "",
+                        finish: false,
+                        CCAlgorithm: "",
+                        CCOperation: "",
+                        CCMode: "",
+                        CCKeySize: "",
+                        CCModeOptions: "",
+                        CCPadding: "",
+                        Key: "",
+                        Iv: "",
+                        Tweak: "",
+                        TweakLen: "",
+                        NumRounds: ""
+                    };
+                    model.log = model.log.concat(COLORS.green, "[*] ENTER CCCryptorUpdate (note: Cannot be associated with an existing CCCryptorRef, so the data encryption parameters are unknown, However, a list of encryption instances that are currently still being processed can be provided here.)", COLORS.resetColor, "\n");
+                    model.log = model.log.concat(COLORS.blue, "[=] The list is as follows:", COLORS.resetColor, "\n");
+                    for (let cRefCacheKey in cRefCache) {
+                        let value = cRefCache[cRefCacheKey];
+                        if (value != null && !value.finish) {
+                            model.log = model.log.concat(COLORS.cyan, "[+] CCCryptorRef: ", "" + value.cRef + "(pointer)", " dump:\n", COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCAlgorithm: ", value.CCAlgorithm, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCOperation: ", value.CCOperation, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCMode: ", value.CCMode, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCKeySize: ", value.CCKeySize, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCModeOptions: ", value.CCModeOptions, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : CCPadding: ", value.CCPadding, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : Key: ", value.Key, COLORS.resetColor, "\n");
+                            model.log = model.log.concat(COLORS.yellow, "[+] : Iv: ", value.Iv, COLORS.resetColor, "\n");
+                            if (parseInt(value.TweakLen) > 0) {
+                                model.log = model.log.concat(COLORS.yellow, "[+] : TweakLen: ", value.TweakLen, COLORS.resetColor, "\n");
+                                model.log = model.log.concat(COLORS.yellow, "[+] : Tweak: ", value.Tweak, COLORS.resetColor, "\n");
+                            }
+                            model.log = model.log.concat(COLORS.yellow, "[+] : NumRounds: ", value.NumRounds, COLORS.resetColor, "\n");
+                        }
+                    }
+                    model.log = model.log.concat(COLORS.blue, "[=] End of list", COLORS.resetColor, "\n");
+                    cRefCache[pointerToInt(this.params[0])] = model;
                 }
                 if(!model.enable)return;
-                model.originalLen+=this.dataLen.toInt32();
+                model.originalLen += this.params[2].toInt32();
                 let remainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalLen;
-                let dataLen = pointerToInt(this.dataLen);
+                let dataLen = pointerToInt(this.params[2]);
                 if(dataLen>0&&remainingSpace>0){
                     let copyLength = Math.min(dataLen, remainingSpace);
                     let tmpData=Memory.alloc(copyLength);
-                    Memory.copy(tmpData,this.data,copyLength);
+                    Memory.copy(tmpData, this.params[1], copyLength);
                     model.dataMap.push({data:tmpData,len:copyLength})
                     model.totalLen+=copyLength;
                 }
                 let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
-                let outLen=pointerToInt(this.outLen.readPointer());
+                let outLen = pointerToInt(this.params[5].readPointer());
                 model.originalOutLen+=outLen;
                 if(outLen>0&&outRemainingSpace>0){
                     let copyLength = Math.min(outLen, outRemainingSpace);
                     let tmpDataOut=Memory.alloc(copyLength);
-                    Memory.copy(tmpDataOut,this.out,copyLength);
+                    Memory.copy(tmpDataOut, this.params[3], copyLength);
                     model.dataOutMap.push({data:tmpDataOut,len:copyLength});
                     model.totalOutLen+=copyLength;
                 }
@@ -499,12 +593,13 @@ function commonCryptoInterceptor() {
     Interceptor.attach(CCCryptorFinal,
         {
             onEnter: function(args) {
-                this.cRef=args[0];
-                this.dataOut=args[1];
-                this.dataOutLen=args[3];
+                this.params = [];
+                for (let i = 0; i < 4; i++) {
+                    this.params.push(args[i]);
+                }
             },
             onLeave: function(retval) {
-                let model:CCCryptorModel=cRefCache[pointerToInt(this.cRef)];
+                let model: CCCryptorModel = cRefCache[pointerToInt(this.params[0])];
                 if(model==null){
                     console.error("CCCryptorFinal model is null");
                     return;
@@ -513,12 +608,12 @@ function commonCryptoInterceptor() {
 
                 if(model.totalOutLen<CIPHER_CONFIG.crypto.maxDataLength){
                     let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
-                    let outLen=pointerToInt(this.dataOutLen.readPointer());
+                    let outLen = pointerToInt(this.params[3].readPointer());
                     model.originalOutLen+=outLen;
                     if(outLen>0&&outRemainingSpace>0){
                         let copyLength=Math.min(outLen,outRemainingSpace);
                         let tmpDataOut=Memory.alloc(copyLength);
-                        Memory.copy(tmpDataOut,this.dataOut,copyLength);
+                        Memory.copy(tmpDataOut, this.params[1], copyLength);
                         model.dataOutMap.push({data:tmpDataOut,len:copyLength});
                         model.totalOutLen+=copyLength;
                     }
@@ -543,6 +638,7 @@ function commonCryptoInterceptor() {
                     model.log=model.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
                 }
                 model.log=model.log.concat(COLORS.green,"[*] EXIT CCCryptorFinal ",COLORS.resetColor,"\n");
+                model.finish = true;
                 filterLog(model.log,CIPHER_CONFIG.crypto.filter);
             }
 
@@ -735,7 +831,7 @@ function commonHMACInterceptor(){
         onLeave:function (reval){
             if(!this.enable)return;
             this.log=this.log.concat(COLORS.magenta,"[+] Data out len: "+this.mdLen,COLORS.resetColor,"\n");
-            this.log=this.log.concat(COLORS.magenta,"[+] Data out:\n",print_arg(reval,this.mdLen),COLORS.resetColor,"\n");
+            this.log = this.log.concat(COLORS.magenta, "[+] Data out:\n", print_arg(this.macOut, this.mdLen), COLORS.resetColor, "\n");
             if(CIPHER_CONFIG.hmac.printStack){
                 this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
             }
@@ -858,26 +954,28 @@ function commonPBKDFInterceptor(){
     }
     Interceptor.attach(CCKeyDerivationPBKDF,{
         onEnter:function (args){
-            this.derivedKey=args[7];
-            this.derivedKeyLen=args[8];
-            this.log="";
-            this.log=this.log.concat(COLORS.green,"[*] ENTER CCKeyDerivationPBKDF",COLORS.resetColor,"\n");
-            this.log=this.log.concat(COLORS.yellow,"[+] Algorithm: ",CCPBKDFAlgorithm[args[0].toInt32()],"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.yellow,"[+] PseudoRandomAlgorithm: ",CCPseudoRandomAlgorithm[args[5].toInt32()],"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.cyan,"[+] Rounds: ",pointerToInt(args[6]),"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.cyan,"[+] Password len: ",args[2].toInt32(),"\n");
-            this.log=this.log.concat(COLORS.cyan,"[+] Password : \n",print_arg(args[1],args[2].toInt32()),"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.cyan,"[+] Salt len: ",args[4].toInt32(),"\n");
-            this.log=this.log.concat(COLORS.cyan,"[+] Salt : \n",print_arg(args[3],args[4].toInt32()),"\n",COLORS.resetColor);
-            this.log=this.log.concat(COLORS.cyan,"[+] DerivedKey len: ",args[8].toInt32(),"\n");
+            this.params = [];
+            for (let i = 0; i < 9; i++) {
+                this.params.push(args[i]);
+            }
         },
         onLeave:function (reval){
-            this.log=this.log.concat(COLORS.cyan,"[+] DerivedKey : \n",print_arg(this.derivedKey,this.derivedKey.toInt32()),"\n",COLORS.resetColor);
+            var log = "";
+            log = log.concat(COLORS.green, "[*] ENTER CCKeyDerivationPBKDF", COLORS.resetColor, "\n");
+            log = log.concat(COLORS.yellow, "[+] Algorithm: ", CCPBKDFAlgorithm[this.params[0].toInt32()], "\n", COLORS.resetColor);
+            log = log.concat(COLORS.yellow, "[+] PseudoRandomAlgorithm: ", CCPseudoRandomAlgorithm[this.params[5].toInt32()], "\n", COLORS.resetColor);
+            log = log.concat(COLORS.cyan, "[+] Rounds: ", String(pointerToInt(this.params[6])), "\n", COLORS.resetColor);
+            log = log.concat(COLORS.cyan, "[+] Password len: ", this.params[2].toInt32(), "\n");
+            log = log.concat(COLORS.cyan, "[+] Password : \n", print_arg(this.params[1], this.params[2].toInt32()), "\n", COLORS.resetColor);
+            log = log.concat(COLORS.cyan, "[+] Salt len: ", this.params[4].toInt32(), "\n");
+            log = log.concat(COLORS.cyan, "[+] Salt : \n", print_arg(this.params[3], this.params[4].toInt32()), "\n", COLORS.resetColor);
+            log = log.concat(COLORS.cyan, "[+] DerivedKey len: ", this.params[8].toInt32(), "\n");
+            log = log.concat(COLORS.cyan, "[+] DerivedKey : \n", print_arg(this.params[7], this.params[8].toInt32()), "\n", COLORS.resetColor);
             if(CIPHER_CONFIG.pbkdf.printStack){
-                this.log=this.log.concat(COLORS.blue,"[+] stack:\n",Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor,"\n");
+                log = log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
             }
-            this.log=this.log.concat(COLORS.green,"[*] EXIT CCKeyDerivationPBKDF",COLORS.resetColor,"\n");
-            filterLog(this.log,CIPHER_CONFIG.pbkdf.filter);
+            log = log.concat(COLORS.green, "[*] EXIT CCKeyDerivationPBKDF", COLORS.resetColor, "\n");
+            filterLog(log, CIPHER_CONFIG.pbkdf.filter);
         }
     });
     //uint
