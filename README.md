@@ -36,8 +36,10 @@ frida -U --codeshare Humenger/frida-ios-cipher -n "app name"
 ## Config
 > Configuration at the beginning of the [script](./agent/index.ts).
 ```js
+//config
 const CIPHER_CONFIG={
     "enable":true,//global enable
+    "highlighting": true,//syntax highlighting
     "crypto":{
         "enable":true,//crypto enable
         "maxDataLength":240,//Maximum length of single data printout
@@ -49,6 +51,7 @@ const CIPHER_CONFIG={
         "rc4":true,
         "rc2":true,
         "blowfish":true,
+        "filter": []
     },
     "hash":{
         "enable":true,//hash enable
@@ -61,7 +64,8 @@ const CIPHER_CONFIG={
         "sha224":true,
         "sha256":true,
         "sha384":true,
-        "sha512":true
+        "sha512": true,
+        "filter": []
     },
     "hmac":{
         "enable":true,//hmac enable
@@ -73,10 +77,12 @@ const CIPHER_CONFIG={
         "sha256":true,
         "sha384":true,
         "sha512":true,
+        "filter": []
     },
     "pbkdf":{
         "enable":true,
         "printStack":false,
+        "filter": []
     }
 }
 
