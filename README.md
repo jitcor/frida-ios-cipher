@@ -124,3 +124,6 @@ CCCryptorStatus
  * https://www.jianshu.com/p/8896ed432dff
  * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
  * https://blog.csdn.net/q187543/article/details/103920969
+
+## Contact us
+<a href="https://t.zsxq.com/13sBE3elb">Knowledge Planet</a> | <a href="https://discord.gg/vsChYJ2ret">Discord</a>
