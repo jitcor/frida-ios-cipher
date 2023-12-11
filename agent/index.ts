@@ -358,6 +358,7 @@ function commonCryptoInterceptor() {
                     this.log = this.log.concat(COLORS.blue,"[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"),COLORS.resetColor, "\n");
                 }
                 this.log=this.log.concat(COLORS.green,"[*] EXIT CCCrypt",COLORS.resetColor,"\n");
+                filterLog(this.log, CIPHER_CONFIG.crypto.filter);
             }
 
         });
