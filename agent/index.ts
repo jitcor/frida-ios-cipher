@@ -200,7 +200,7 @@ function print_arg(addr,len=240) {
         return "\n"+(hexdump(addr,{length:len})) + "\n";
     } catch (e) {
         if(e instanceof Error){
-            console.error("print_arg error:",e.stack);
+            console.warn("print_arg error:", e.stack);
         }
         return addr + "\n";
     }
@@ -211,7 +211,7 @@ function pointerToInt(ptr:NativePointer){
         return parseInt(ptr.toString());
     }catch (e){
         if(e instanceof Error){
-            console.error("pointerToInt error:",e.stack);
+            console.warn("pointerToInt error:", e.stack);
         }
         return 0;
     }
@@ -322,7 +322,7 @@ function commonCryptoInterceptor() {
     // 	size_t *dataOutMoved);
     let func=Module.findExportByName("libSystem.B.dylib","CCCrypt");
     if(func==null){
-        console.error("CCCrypt func is null");
+        console.warn("CCCrypt func is null");
         return;
     }
     Interceptor.attach(func,
@@ -366,7 +366,7 @@ function commonCryptoInterceptor() {
     //CCCryptorStatus CCCryptorCreate(CCOperation op, CCAlgorithm alg, CCOptions options, const void *key, size_t keyLength, const void *iv,CCCryptorRef *cryptorRef);
     let CCCryptorCreate=Module.findExportByName("libSystem.B.dylib","CCCryptorCreate");
     if(CCCryptorCreate==null){
-        console.error("CCCryptorCreate func is null ")
+        console.warn("CCCryptorCreate func is null ")
         return;
     }
     Interceptor.attach(CCCryptorCreate,
@@ -431,7 +431,7 @@ function commonCryptoInterceptor() {
     //     CCCryptorRef	*cryptorRef)	/* RETURNED */
     let CCCryptorCreateWithMode=Module.findExportByName("libSystem.B.dylib","CCCryptorCreateWithMode");
     if(CCCryptorCreateWithMode==null){
-        console.error("CCCryptorCreateWithMode func is null ")
+        console.warn("CCCryptorCreateWithMode func is null ")
         return;
     }
     Interceptor.attach(CCCryptorCreateWithMode,
@@ -499,7 +499,7 @@ function commonCryptoInterceptor() {
     //CCCryptorStatus CCCryptorUpdate(CCCryptorRef cryptorRef, const void *dataIn,size_t dataInLength, void *dataOut, size_t dataOutAvailable,size_t *dataOutMoved);
     let CCCryptorUpdate=Module.findExportByName("libSystem.B.dylib","CCCryptorUpdate");
     if(CCCryptorUpdate==null){
-        console.error("CCCryptorUpdate func is null");
+        console.warn("CCCryptorUpdate func is null");
         return;
     }
     Interceptor.attach(CCCryptorUpdate,
@@ -588,7 +588,7 @@ function commonCryptoInterceptor() {
     //CCCryptorStatus CCCryptorFinal(CCCryptorRef cryptorRef, void *dataOut,size_t dataOutAvailable, size_t *dataOutMoved);
     let CCCryptorFinal=Module.findExportByName("libSystem.B.dylib","CCCryptorFinal");
     if(CCCryptorFinal==null){
-        console.error("CCCryptorFinal func is null");
+        console.warn("CCCryptorFinal func is null");
         return;
     }
     Interceptor.attach(CCCryptorFinal,
@@ -602,7 +602,7 @@ function commonCryptoInterceptor() {
             onLeave: function(retval) {
                 let model: CCCryptorModel = cRefCache[pointerToInt(this.params[0])];
                 if(model==null){
-                    console.error("CCCryptorFinal model is null");
+                    console.warn("CCCryptorFinal model is null");
                     return;
                 }
                 if(!model.enable)return;
@@ -662,7 +662,7 @@ interface CCHashModel{
 function commonHashInterceptor(name:string, length:number){
     let hash=Module.findExportByName("libSystem.B.dylib",name);
     if(hash==null){
-        console.error(name+" func is null");
+        console.warn(name + " func is null");
         return;
     }
     Interceptor.attach(hash,{
@@ -690,7 +690,7 @@ function commonHashInterceptor(name:string, length:number){
         //CC_SHA1_Init(CC_SHA1_CTX *c);
         let init=Module.findExportByName("libSystem.B.dylib",name+"_Init");
         if (init==null){
-            console.error(name+"_Init func is null")
+            console.warn(name + "_Init func is null")
             return;
         }
         Interceptor.attach(init,
@@ -705,7 +705,7 @@ function commonHashInterceptor(name:string, length:number){
         //CC_SHA1_Update(CC_SHA1_CTX *c, const void *data, CC_LONG len);
         let update=Module.findExportByName("libSystem.B.dylib",name+"_Update");
         if(update==null){
-            console.error(name+"_Update func is null");
+            console.warn(name + "_Update func is null");
             return;
         }
         Interceptor.attach(update,
@@ -713,7 +713,7 @@ function commonHashInterceptor(name:string, length:number){
                 onEnter: function(args) {
                     let model=ctxCache[pointerToInt(args[0])];
                     if(model==null){
-                        console.error("model is null");
+                        console.warn("model is null");
                         return;
                     }
                     let len=pointerToInt(args[2]);
@@ -733,7 +733,7 @@ function commonHashInterceptor(name:string, length:number){
         //CC_SHA1_Final(unsigned char *md, CC_SHA1_CTX *c);
         let final=Module.findExportByName("libSystem.B.dylib",name+"_Final");
         if(final==null){
-            console.error(name+"_Final func is null");
+            console.warn(name + "_Final func is null");
             return;
         }
         Interceptor.attach(final,
@@ -745,11 +745,11 @@ function commonHashInterceptor(name:string, length:number){
                 onLeave: function(retval) {
                     let model=ctxCache[pointerToInt(this.ctxSha)];
                     if(model==null){
-                        console.error(name+"_Final model is null");
+                        console.warn(name + "_Final model is null");
                         return;
                     }
                     if(model.totalLen<=0){
-                        console.error("totalLen :",model.totalLen);
+                        console.warn("totalLen :", model.totalLen);
                         return;
                     }
                     let totalData=Memory.alloc(model.totalLen);
@@ -809,7 +809,7 @@ function commonHMACInterceptor(){
     //void CCHmac(CCHmacAlgorithm algorithm, const void *key, size_t keyLength,const void *data, size_t dataLength, void *macOut);
     let hmac=Module.findExportByName("libSystem.B.dylib",name);
     if(hmac==null){
-        console.error(name+" func is null");
+        console.warn(name + " func is null");
         return;
     }
     Interceptor.attach(hmac,{
@@ -847,7 +847,7 @@ function commonHMACInterceptor(){
         //          const void *key, size_t keyLength);
         let init=Module.findExportByName("libSystem.B.dylib",name+"Init");
         if(init==null){
-            console.error(name+"Init func is null");
+            console.warn(name + "Init func is null");
             return;
         }
         Interceptor.attach(init,
@@ -867,7 +867,7 @@ function commonHMACInterceptor(){
         //      CCHmacUpdate(CCHmacContext *ctx, const void *data, size_t dataLength);
         let update=Module.findExportByName("libSystem.B.dylib",name+"Update");
         if(update==null){
-            console.error(name+"Update func is null");
+            console.warn(name + "Update func is null");
             return;
         }
         Interceptor.attach(update,
@@ -875,7 +875,7 @@ function commonHMACInterceptor(){
                 onEnter: function(args) {
                     let model=ctxCache[pointerToInt(args[0])];
                     if(model==null){
-                        console.error(name+"Update model is null");
+                        console.warn(name + "Update model is null");
                         return;
                     }
                     if(!model.enable)return;
@@ -897,7 +897,7 @@ function commonHMACInterceptor(){
         //      CCHmacFinal(CCHmacContext *ctx, void *macOut);
         let final=Module.findExportByName("libSystem.B.dylib",name+"Final");
         if(final==null){
-            console.error(name+"Final func is null");
+            console.warn(name + "Final func is null");
             return;
         }
         Interceptor.attach(final,
@@ -909,12 +909,12 @@ function commonHMACInterceptor(){
                 onLeave: function(retval) {
                     let model=ctxCache[pointerToInt(this.ctx)];
                     if(model==null){
-                        console.error(name+"Final model is null");
+                        console.warn(name + "Final model is null");
                         return;
                     }
                     if(!model.enable)return;
                     if(model.totalLen<=0){
-                        console.error("totalLen :",model.totalLen);
+                        console.warn("totalLen :", model.totalLen);
                         return;
                     }
                     let totalData=Memory.alloc(model.totalLen);
@@ -950,7 +950,7 @@ function commonPBKDFInterceptor(){
     //                       uint8_t *derivedKey, size_t derivedKeyLen)
     let CCKeyDerivationPBKDF=Module.findExportByName("libSystem.B.dylib","CCKeyDerivationPBKDF");
     if(CCKeyDerivationPBKDF==null){
-        console.error("CCKeyDerivationPBKDF func is null");
+        console.warn("CCKeyDerivationPBKDF func is null");
         return;
     }
     Interceptor.attach(CCKeyDerivationPBKDF,{
@@ -984,7 +984,7 @@ function commonPBKDFInterceptor(){
     //                  CCPseudoRandomAlgorithm prf, size_t derivedKeyLen, uint32_t msec)
     let CCCalibratePBKDF=Module.findExportByName("libSystem.B.dylib","CCCalibratePBKDF");
     if(CCCalibratePBKDF==null){
-        console.error("CCCalibratePBKDF func is null");
+        console.warn("CCCalibratePBKDF func is null");
         return;
     }
     Interceptor.attach(CCCalibratePBKDF,{
