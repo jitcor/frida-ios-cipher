@@ -13,6 +13,9 @@ Intercept all cryptography-related functions on iOS with Frida Api.
 * [x] `HMAC`
 * [x] `PBKDF`
 * [ ] `KEYCHAIN`
+* [ ] `RSA`
+* [ ] `ECDH`
+* [ ] `ECDSA`
 ## Preview
 ![image](./res/ios_cipher_preview.png)
 ## Instructions for use
