@@ -130,4 +130,4 @@ CCCryptorStatus
  * https://blog.csdn.net/q187543/article/details/103920969
 
 ## Technical Support
-<a href="https://t.zsxq.com/13sBE3elb">Knowledge Planet</a>
+<a href="https://t.me/shluer">Telegram</a>
