@@ -37,6 +37,10 @@ frida -U --codeshare Humenger/frida-ios-cipher -f "xxx.xxx.xxx" --no-pause
 ```bash
 frida -U --codeshare Humenger/frida-ios-cipher -n "app name"
 ```
+## development environment
+MacOS Sonoma 14.6.1  
+Frida 15.1.2    
+iPad 14.4.2  
 ## Config
 > Configuration at the beginning of the [script](./agent/index.ts).
 ```js
