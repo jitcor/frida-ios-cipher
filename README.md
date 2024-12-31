@@ -37,10 +37,6 @@ frida -U --codeshare Humenger/frida-ios-cipher -f "xxx.xxx.xxx" --no-pause
 ```bash
 frida -U --codeshare Humenger/frida-ios-cipher -n "app name"
 ```
-## development environment
-MacOS Sonoma 14.6.1  
-Frida 15.1.2    
-iPad 14.4.2  
 ## Config
 > Configuration at the beginning of the [script](./agent/index.ts).
 ```js
@@ -102,6 +98,10 @@ const CIPHER_CONFIG={
 npm install 
 npm run build
 ```
+## development environment
+MacOS Sonoma 14.6.1  
+Frida 15.1.2    
+iPad 14.4.2  
 ## Replenishment
 Of course there are a couple of functions that don't do interceptions, as shown below:
 ```c
