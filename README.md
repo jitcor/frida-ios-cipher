@@ -87,6 +87,13 @@ const CIPHER_CONFIG={
         "enable":true,
         "printStack":false,
         "filter": []
+    },
+    "keychain": {
+        "enable": true,
+        "maxDataLength": 240,
+        "printStack": false,
+        "realtimeIntercept": true,
+        "filter": []
     }
 }
 
