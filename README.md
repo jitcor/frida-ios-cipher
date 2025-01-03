@@ -132,6 +132,10 @@ CCCryptorStatus
  * https://www.jianshu.com/p/8896ed432dff
  * https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
  * https://blog.csdn.net/q187543/article/details/103920969
+* https://github.com/ptoomey3/Keychain-Dumper/blob/master/main.m
+* https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
+* https://codeshare.frida.re/@Shapa7276/ios-keychain-update/
+* https://github.com/FSecureLABS/needle/blob/master/needle/modules/storage/data/keychain_dump_frida.py
 
 ## Technical Support
 <a href="https://t.me/shluer">Telegram</a>

@@ -2,8 +2,8 @@
 /*************************************************************************************
  * Name: frida-ios-cipher
  * OS: iOS
- * Author: @humenger
- * Source: https://github.com/humenger/frida-ios-cipher
+ * Author: @shlu
+ * Source: https://github.com/xpko/frida-ios-cipher
  * Desc: Intercept all cryptography-related functions on iOS with Frida Api.
  * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
  * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
@@ -20,6 +20,10 @@
  * refs:https://www.jianshu.com/p/8896ed432dff
  * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
  * refs:https://blog.csdn.net/q187543/article/details/103920969
+ * refs:https://github.com/ptoomey3/Keychain-Dumper/blob/master/main.m
+ * refs:https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
+ * refs:https://codeshare.frida.re/@Shapa7276/ios-keychain-update/
+ * refs:https://github.com/FSecureLABS/needle/blob/master/needle/modules/storage/data/keychain_dump_frida.py
  **************************************************************************************/
 //config
 const CIPHER_CONFIG={
@@ -65,8 +69,15 @@ const CIPHER_CONFIG={
         "filter":[]
     },
     "pbkdf":{
+        "enable": true,
+        "printStack": false,
+        "filter": []
+    },
+    "keychain": {
         "enable":true,
+        "maxDataLength": 240,
         "printStack":false,
+        "realtimeIntercept": true,
         "filter":[]
     }
 }
@@ -194,20 +205,27 @@ const CCPBKDFAlgorithm:{[key:number]:string}={
 }
 
 // @ts-ignore
-function print_arg(addr,len=240) {
+function print_arg(addr, len = 240, indent = null) {
+    var result = "";
     try {
-        if(addr==null)return "\n";
-        return "\n"+(hexdump(addr,{length:len})) + "\n";
+        if (!addr || addr.toInt32() === 0 || addr.isNull()) return "\n";
+        result = "\n" + (hexdump(addr, {length: len})) + "\n";
     } catch (e) {
         if(e instanceof Error){
             console.warn("print_arg error:", e.stack);
         }
-        return addr + "\n";
+        result = addr + "\n";
     }
+    if (indent != null) {
+        result = result.split('\n')
+            .map(line => indent + line)
+            .join('\n');
+    }
+    return result;
 }
 function pointerToInt(ptr:NativePointer){
     try {
-        if(ptr==null)return 0;
+        if (!ptr || ptr.toInt32() === 0 || ptr.isNull()) return 0;
         return parseInt(ptr.toString());
     }catch (e){
         if(e instanceof Error){
@@ -237,6 +255,9 @@ function filterLog(msg:string,filter:string[]){
 
 }
 
+function isSpawned() {
+    return Process.enumerateThreads().length === 1;
+}
 function fixHexDump(hex:string){
     // @ts-ignore
     var ret="";
@@ -1009,8 +1030,451 @@ function commonPBKDFInterceptor(){
     });
 }
 
+
+//keychain
+function commonKeychainInterceptor() {
+
+    var ISA_MASK = ptr('0x0000000ffffffff8');
+    var ISA_MAGIC_MASK = ptr('0x000003f000000001');
+    var ISA_MAGIC_VALUE = ptr('0x000001a000000001');
+
+
+    // @ts-ignore
+    function isObjC(p) {
+        var klass = getObjCClassPtr(p);
+        return !klass.isNull();
+    }
+
+    // @ts-ignore
+    function getObjCClassPtr(p) {
+        /*
+         * Loosely based on:
+         * https://blog.timac.org/2016/1124-testing-if-an-arbitrary-pointer-is-a-valid-objective-c-object/
+         */
+
+        if (!isReadable(p)) {
+            return NULL;
+        }
+        var isa = p.readPointer();
+        var classP = isa;
+        if (classP.and(ISA_MAGIC_MASK).equals(ISA_MAGIC_VALUE)) {
+            classP = isa.and(ISA_MASK);
+        }
+        if (isReadable(classP)) {
+            return classP;
+        }
+        return NULL;
+    }
+
+    // @ts-ignore
+    function isReadable(p) {
+        try {
+            p.readU8();
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+
+    /*******************************************************
+     * 0. 通用工具函数
+     *******************************************************/
+
+    /**
+     * 从导出符号中获取 C 函数或者常量指针
+     * type = "f" => function, type = "d" => data
+     * ret/args 仅函数类型需要，常量不需要
+     */
+    //@ts-ignore
+    function getExportFunction(type, name, ret, args) {
+        var nptr = Module.findExportByName(null, name);
+        if (nptr === null) {
+            console.warn("[-] Cannot find export:", name);
+            return null;
+        }
+        if (type === "f") {
+            // @ts-ignore
+            var funclet = new NativeFunction(nptr, ret, args);
+            if (!funclet) {
+                console.warn("[-] parse error for function:", name);
+                return null;
+            }
+            return funclet;
+        } else if (type === "d") {
+            var datalet = nptr.readPointer();
+            if (!datalet) {
+                console.warn("[-] parse error for data:", name);
+                return null;
+            }
+            return datalet;
+        }
+    }
+
+    /**
+     * 依据 NSData 首字节 / 是否全可见 ASCII，做简单类型检测
+     * - JSON: 首字节是 '{' or '['
+     * - ASCII: 每字节都在 0x20~0x7E
+     * - 否则 => Binary
+     */
+    // @ts-ignore
+    function detectDataType(nsDataObj) {
+        if (!nsDataObj || nsDataObj.isNull()) return "Empty";
+        var length = nsDataObj.length();
+        if (length === 0) return "Empty";
+
+        var ptrBytes = nsDataObj.bytes();
+        var rawBytes = ptrBytes.readByteArray(length);
+        var u8Arr = new Uint8Array(rawBytes);
+
+        // 1) JSON
+        if (u8Arr[0] === 0x7B || u8Arr[0] === 0x5B) {
+            // '{'=0x7B, '['=0x5B
+            return "Possible JSON";
+        }
+
+        // 2) 检查是否全为可见 ASCII
+        var allAscii = true;
+        for (var i = 0; i < u8Arr.length; i++) {
+            if (u8Arr[i] < 0x20 || u8Arr[i] > 0x7E) {
+                allAscii = false;
+                break;
+            }
+        }
+        if (allAscii) return "Possible ASCII";
+
+        // 3) 否则就是二进制
+        return "Binary";
+    }
+
+    /**
+     * 将 NSData 以 hexdump(16字节一行)格式打印
+     */
+
+
+    /*******************************************************
+     * 1. 打印 Keychain Item (NSDictionary / NSData / NSArray)
+     *******************************************************/
+
+    /**
+     * 当我们在“静态枚举”或“动态结果”里拿到的对象可能是：
+     * - NSArray(里面每个元素是 NSDictionary)
+     * - NSDictionary(里面可能有 v_Data / kSecValueData 字段)
+     * - NSData(直接就是 __NSCFData)
+     * - 甚至其他类型
+     *
+     * 我们做一个统一的入口来处理。
+     */
+    //@ts-ignore
+    function dumpKeychainObject(objHandle, indent = "") {
+        var log = "";
+        if (!objHandle || objHandle.toInt32() === 0 || objHandle.isNull() || !isObjC(objHandle)) return log;
+
+        var obj = new ObjC.Object(objHandle);
+
+        // 1) NSArray
+        if (obj.isKindOfClass_(ObjC.classes.NSArray)) {
+            log = log.concat(indent, COLORS.green, "[*] ENTER dump NSArray", COLORS.resetColor, "\n")
+            for (var i = 0; i < obj.count(); i++) {
+                var subItem = obj.objectAtIndex_(i);
+                // 可能是 dict / data / etc.
+                log = log.concat(indent, "[+] object: \n", dumpKeychainObject(subItem.handle, "    " + indent), "\n")
+            }
+            log = log.concat(indent, COLORS.green, "[*] EXIT dump NSArray", COLORS.resetColor, "\n")
+        }
+        // 2) NSDictionary
+        else if (obj.isKindOfClass_(ObjC.classes.NSDictionary)) {
+            log = log.concat(indent, COLORS.green, "[*] ENTER dump NSDictionary", COLORS.resetColor, "\n")
+            // 我们遍历 key => value
+            var allKeys = obj.allKeys();
+            for (var i = 0; i < allKeys.count(); i++) {
+                var key = allKeys.objectAtIndex_(i);
+                var val = obj.objectForKey_(key);
+                var kStr = key.toString();
+                // 如果是 data 字段，就 hexdump
+                // 常见的是 v_Data, kSecValueData, v_DataEncrypted
+                if (val.$className === "NSConcreteData") {
+                    // var type = detectDataType(val);
+                    // console.log("    " + kStr + " [Detected: " + type + "] => hexdump:");
+                    // dumpNSData(val);
+                    log = log.concat(indent, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), "\n")
+                } else {
+                    // 如果是其他对象(NSArray/NSDictionary/NSString/NSNumber/...)
+                    // 递归 or 直接 toString
+                    if (val.isKindOfClass_(ObjC.classes.NSArray) ||
+                        val.isKindOfClass_(ObjC.classes.NSDictionary) ||
+                        val.isKindOfClass_(ObjC.classes.NSData)) {
+                        // 递归再打印
+                        if (kStr.indexOf("v_Data") == 0) {
+                            log = log.concat(indent, COLORS.yellow, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), COLORS.resetColor, "\n")
+                        } else {
+                            log = log.concat(indent, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), "\n")
+                        }
+
+                    } else {
+                        if (kStr.indexOf("acct") == 0 || kStr.indexOf("svce") == 0 || kStr.indexOf("agrp") == 0) {
+                            log = log.concat(indent, COLORS.cyan, "[+] ", `${kStr}: ${val}`, COLORS.resetColor, "\n")
+                        } else {
+                            // @ts-ignore
+                            log = log.concat(indent, "[+] ", `${kStr}: ${val}`, "\n")
+                        }
+                    }
+                }
+            }
+            log = log.concat(indent, COLORS.green, "[*] EXIT dump NSDictionary", COLORS.resetColor, "\n")
+        }
+        // 3) NSData
+        else if (obj.isKindOfClass_(ObjC.classes.NSData)) {
+            if (!obj || obj.isNull() || obj.length() == 0) {
+                log = log.concat(indent, "[-] NSData.Len: 0", "\n")
+                log = log.concat(indent, "[-] NSData: null", "\n")
+            } else {
+                var length = obj.length();
+                var ptrBytes = obj.bytes();
+                let minLen = Math.min(CIPHER_CONFIG.keychain.maxDataLength, length);
+                log = log.concat(indent, "[+] NSData.Len: ", String(minLen), "/", length, "", "\n")
+                // @ts-ignore
+                log = log.concat(indent, "[+] NSData: \n", print_arg(ptrBytes, minLen, indent), "\n")
+            }
+        }
+        // 4) 其他类型
+        else {
+            log = log.concat(indent, "[-] ", obj.$className, ": \n", obj.toString(), "\n")
+        }
+        return log;
+    }
+
+    /*******************************************************
+     * 2. 静态枚举 Keychain
+     *******************************************************/
+    function dumpKeychain() {
+
+        var NSMutableDictionary = ObjC.classes.NSMutableDictionary;
+
+        // @ts-ignore
+        var kCFBooleanTrue = new ObjC.Object(getExportFunction("d", "kCFBooleanTrue"));
+        // @ts-ignore
+        var kSecReturnAttributes = new ObjC.Object(getExportFunction("d", "kSecReturnAttributes"));
+        // @ts-ignore
+        var kSecReturnData = new ObjC.Object(getExportFunction("d", "kSecReturnData"));
+        // @ts-ignore
+        var kSecReturnRef = new ObjC.Object(getExportFunction("d", "kSecReturnRef"));
+        // @ts-ignore
+        var kSecMatchLimitAll = ObjC.Object(getExportFunction("d", "kSecMatchLimitAll"));
+        // @ts-ignore
+        var kSecMatchLimit = ObjC.Object(getExportFunction("d", "kSecMatchLimit"));
+        // @ts-ignore
+        var kSecClassGenericPassword = ObjC.Object(getExportFunction("d", "kSecClassGenericPassword"));
+        // @ts-ignore
+        var kSecClassInternetPassword = ObjC.Object(getExportFunction("d", "kSecClassInternetPassword"));
+        // @ts-ignore
+        var kSecClassCertificate = ObjC.Object(getExportFunction("d", "kSecClassCertificate"));
+        // @ts-ignore
+        var kSecClassKey = ObjC.Object(getExportFunction("d", "kSecClassKey"));
+        // @ts-ignore
+        var kSecClassIdentity = ObjC.Object(getExportFunction("d", "kSecClassIdentity"));
+        // @ts-ignore
+        var kSecClass = ObjC.Object(getExportFunction("d", "kSecClass"));
+
+        //ref: https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
+        // @ts-ignore
+        var kSecAttrAccessibleAfterFirstUnlock = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAfterFirstUnlock"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenUnlocked = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenUnlocked"));
+        // @ts-ignore
+        var kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleAlwaysThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAlwaysThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenUnlockedThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenUnlockedThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleAlways = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAlways"));
+
+
+        // @ts-ignore
+        var SecItemCopyMatching = getExportFunction("f", "SecItemCopyMatching", "int", ["pointer", "pointer"]);
+
+        var classes = [
+            kSecClassGenericPassword,
+            kSecClassInternetPassword,
+            kSecClassCertificate,
+            kSecClassKey,
+            kSecClassIdentity
+        ];
+
+        // 逐个枚举
+        var query = NSMutableDictionary.alloc().init();
+        var log = "";
+        log = log.concat(COLORS.green, "[*] ENTER dump keychain", COLORS.resetColor, "\n")
+        var indent = "";
+        classes.forEach(function (secItemClass) {
+            indent = "    ";
+            log = log.concat(indent, COLORS.green, "[*] ENTER dump item", COLORS.resetColor, "\n")
+            query.removeAllObjects();
+            query.setObject_forKey_(kCFBooleanTrue, kSecReturnAttributes);
+            query.setObject_forKey_(kCFBooleanTrue, kSecReturnData);
+            query.setObject_forKey_(kCFBooleanTrue, kSecReturnRef);
+            query.setObject_forKey_(kSecMatchLimitAll, kSecMatchLimit);
+            query.setObject_forKey_(secItemClass, kSecClass);
+
+            var resultPtr = Memory.alloc(Process.pointerSize);
+            resultPtr.writePointer(NULL);
+
+            // @ts-ignore
+            var status = SecItemCopyMatching(query.handle, resultPtr);
+            // errSecSuccess = 0
+            log = log.concat(indent, COLORS.resetColor, "[+] status: ", status, COLORS.resetColor, "\n")
+            if (status === 0) {
+                var outPtr = resultPtr.readPointer();
+                log = log.concat(indent, COLORS.resetColor, "[+] object: \n", dumpKeychainObject(outPtr, "   " + indent), COLORS.resetColor, "\n")
+            } else {
+                // 没有数据时不会返回0
+                // console.log("[*] No items for", secItemClass.toString(), " => status =", status);
+                log = log.concat(indent, COLORS.resetColor, "[-] object: null", COLORS.resetColor, "\n")
+            }
+            log = log.concat(indent, COLORS.green, "[*] EXIT dump item", COLORS.resetColor, "\n")
+        });
+        log = log.concat(COLORS.green, "\n[*] EXIT dump keychain", COLORS.resetColor, "\n")
+        filterLog(log, CIPHER_CONFIG.keychain.filter);
+    }
+
+    /*******************************************************
+     * 3. 动态 Hook Keychain API
+     *******************************************************/
+    function keychainInterceptor() {
+
+        // 3.1 Hook SecItemAdd
+        var SecItemAddPtr = Module.findExportByName(null, "SecItemAdd");
+        if (SecItemAddPtr) {
+            Interceptor.attach(SecItemAddPtr, {
+                onEnter: function (args) {
+                    this.log = "";
+                    this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemAdd", COLORS.resetColor, "\n");
+                    this.attrsPtr = args[0];
+                    this.resultPtr = args[1];
+                    this.log = this.log.concat("[+] attrs: \n", dumpKeychainObject(this.attrsPtr, "    "), "\n");
+                },
+                onLeave: function (retval) {
+                    this.log = this.log.concat("[+] status: ", retval.toInt32(), "\n");
+                    if (this.resultPtr.toInt32() !== 0) {
+                        var outCF = this.resultPtr.readPointer();
+                        if (isObjC(outCF)) {
+                            this.log = this.log.concat("[+] result: \n", dumpKeychainObject(this.resultPtr, "    "), "\n");
+                        } else {
+                            this.log = this.log.concat("[-] result: null", "\n");
+                        }
+                    } else {
+                        this.log = this.log.concat("[-] result: null", "\n");
+                    }
+                    if (CIPHER_CONFIG.keychain.printStack) {
+                        this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+                    }
+                    this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemAdd", COLORS.resetColor, "\n");
+                    filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+                }
+            });
+        }
+
+        // 3.2 Hook SecItemCopyMatching
+        var SecItemCopyMatchingPtr = Module.findExportByName(null, "SecItemCopyMatching");
+        if (SecItemCopyMatchingPtr) {
+            Interceptor.attach(SecItemCopyMatchingPtr, {
+                onEnter: function (args) {
+                    this.log = "";
+                    this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemCopyMatching", COLORS.resetColor, "\n");
+                    this.queryPtr = args[0];
+                    this.resultPtr = args[1];
+                    this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+                },
+                onLeave: function (retval) {
+                    let status = retval.toInt32();
+                    this.log = this.log.concat("[+] status: ", status, "\n");
+                    if (this.resultPtr.toInt32() !== 0) {
+                        let resultObj = this.resultPtr.readPointer();
+                        if (isObjC(resultObj)) {
+                            this.log = this.log.concat("[+] result: \n", dumpKeychainObject(resultObj, "    "), "\n");
+                        } else {
+                            this.log = this.log.concat("[-] result: null", "\n");
+                        }
+                    } else {
+                        this.log = this.log.concat("[-] result: null", "\n");
+                    }
+                    if (CIPHER_CONFIG.keychain.printStack) {
+                        this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+                    }
+                    this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemCopyMatching", COLORS.resetColor, "\n");
+                    filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+                }
+            });
+        }
+
+        // 3.3 Hook SecItemUpdate
+        var SecItemUpdatePtr = Module.findExportByName(null, "SecItemUpdate");
+        if (SecItemUpdatePtr) {
+            Interceptor.attach(SecItemUpdatePtr, {
+                onEnter: function (args) {
+                    this.log = "";
+                    this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemUpdate", COLORS.resetColor, "\n");
+                    this.queryPtr = args[0];
+                    this.attrsPtr = args[1];
+                    this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+                    this.log = this.log.concat("[+] attributesToUpdate: \n", dumpKeychainObject(this.attrsPtr, "    "), "\n");
+                },
+                onLeave: function (retval) {
+                    let status = retval.toInt32();
+                    this.log = this.log.concat("[+] status: ", status, "\n");
+                    if (CIPHER_CONFIG.keychain.printStack) {
+                        this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+                    }
+                    this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemUpdate", COLORS.resetColor, "\n");
+                    filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+                }
+            });
+        }
+
+        // 3.4 Hook SecItemDelete
+        var SecItemDeletePtr = Module.findExportByName(null, "SecItemDelete");
+        if (SecItemDeletePtr) {
+            Interceptor.attach(SecItemDeletePtr, {
+                onEnter: function (args) {
+                    this.log = "";
+                    this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemDelete", COLORS.resetColor, "\n");
+                    this.queryPtr = args[0];
+                    this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+                },
+                onLeave: function (retval) {
+                    this.log = this.log.concat("[+] status: ", retval.toInt32(), "\n");
+                    if (CIPHER_CONFIG.keychain.printStack) {
+                        this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+                    }
+                    this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemDelete", COLORS.resetColor, "\n");
+                    filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+                }
+            });
+        }
+    }
+
+    if (isSpawned()) {
+        let intervalId = setInterval(function () {
+            clearInterval(intervalId);
+            dumpKeychain();
+        }, 5000);
+
+    } else {
+        dumpKeychain();
+    }
+    if (CIPHER_CONFIG.keychain.realtimeIntercept) {
+        keychainInterceptor();
+    }
+}
 //start
 (function (){
+    if (!ObjC.available) {
+        console.log("Only supports iOS!!");
+        return;
+    }
     if(!CIPHER_CONFIG.enable){
         return
     }
@@ -1050,13 +1514,15 @@ function commonPBKDFInterceptor(){
             //extern unsigned char *CC_MD5(const void *data, CC_LONG len, unsigned char *md);
             commonHashInterceptor("CC_MD5",16);
         }
-        if(CIPHER_CONFIG.hmac.enable){
-            commonHMACInterceptor();
-        }
-        if(CIPHER_CONFIG.pbkdf.enable){
-            commonPBKDFInterceptor();
-        }
-
+    }
+    if (CIPHER_CONFIG.hmac.enable) {
+        commonHMACInterceptor();
+    }
+    if (CIPHER_CONFIG.pbkdf.enable) {
+        commonPBKDFInterceptor();
+    }
+    if (CIPHER_CONFIG.keychain.enable) {
+        commonKeychainInterceptor();
     }
 })();
 
