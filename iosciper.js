@@ -1,847 +1,1443 @@
-/*************************************************************************************
- * Name: frida-ios-cipher
- * OS: iOS
- * Author: @shlu
- * Source: https://github.com/xpko/frida-ios-cipher
- * Desc: Intercept all cryptography-related functions on iOS with Frida Api.
- * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
- * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
- * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_SHA.3cc.html#//apple_ref/doc/man/3cc/CC_SHA
- * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CCCryptor.3cc.html#//apple_ref/doc/man/3cc/CCCryptor
- * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-55010/CommonCrypto/CommonKeyDerivation.h.auto.html
- * refs:https://www.cnblogs.com/cocoajin/p/6150203.html
- * refs:https://frida.re/docs/javascript-api/
- * refs:https://codeshare.frida.re/@xperylab/cccrypt-dump/
- * refs:https://github.com/federicodotta/Brida
- * refs:https://github.com/sensepost/objection/blob/master/agent/src/ios/crypto.ts
- * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/CommonCryptor.c.auto.html
- * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60026/CommonCrypto/CommonCryptor.h.auto.html
- * refs:https://www.jianshu.com/p/8896ed432dff
- * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
- * refs:https://blog.csdn.net/q187543/article/details/103920969
- * refs:https://github.com/ptoomey3/Keychain-Dumper/blob/master/main.m
- * refs:https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
- * refs:https://codeshare.frida.re/@Shapa7276/ios-keychain-update/
- * refs:https://github.com/FSecureLABS/needle/blob/master/needle/modules/storage/data/keychain_dump_frida.py
- **************************************************************************************/
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
-
-const t = {
-  enable: !0,
-  highlighting: !0,
-  crypto: {
-    enable: !0,
-    maxDataLength: 240,
-    printStack: !1,
-    aes: !0,
-    des: !0,
-    "3des": !0,
-    cast: !0,
-    rc4: !0,
-    rc2: !0,
-    blowfish: !0,
-    filter: []
-  },
-  hash: {
-    enable: !0,
-    maxInputDataLength: 240,
-    printStack: !1,
-    md2: !0,
-    md4: !0,
-    md5: !0,
-    sha1: !0,
-    sha224: !0,
-    sha256: !0,
-    sha384: !0,
-    sha512: !0,
-    filter: []
-  },
-  hmac: {
-    enable: !0,
-    maxInputDataLength: 240,
-    printStack: !1,
-    sha1: !0,
-    md5: !0,
-    sha224: !0,
-    sha256: !0,
-    sha384: !0,
-    sha512: !0,
-    filter: []
-  },
-  pbkdf: {
-    enable: !0,
-    printStack: !1,
-    filter: []
-  },
-  keychain: {
-    enable: !0,
-    maxDataLength: 240,
-    printStack: !1,
-    realtimeIntercept: !0,
-    filter: []
-  }
-}, e = {
-  resetColor: t.highlighting ? "[0m" : "",
-  bold: t.highlighting ? "[1m" : "",
-  dim: t.highlighting ? "[2m" : "",
-  italic: t.highlighting ? "[3m" : "",
-  underline: t.highlighting ? "[4m" : "",
-  blink: t.highlighting ? "[5m" : "",
-  reverse: t.highlighting ? "[7m" : "",
-  hidden: t.highlighting ? "[8m" : "",
-  black: t.highlighting ? "[30m" : "",
-  red: t.highlighting ? "[31m" : "",
-  green: t.highlighting ? "[32m" : "",
-  yellow: t.highlighting ? "[33m" : "",
-  blue: t.highlighting ? "[34m" : "",
-  magenta: t.highlighting ? "[35m" : "",
-  cyan: t.highlighting ? "[36m" : "",
-  white: t.highlighting ? "[37m" : "",
-  bgBlack: t.highlighting ? "[40m" : "",
-  bgRed: t.highlighting ? "[41m" : "",
-  bgGreen: t.highlighting ? "[42m" : "",
-  bgYellow: t.highlighting ? "[43m" : "",
-  bgBlue: t.highlighting ? "[44m" : "",
-  bgMagenta: t.highlighting ? "[45m" : "",
-  bgCyan: t.highlighting ? "[46m" : "",
-  bgWhite: t.highlighting ? "[47m" : ""
-}, o = 16, n = 16, a = 16, l = 20, r = 28, i = 32, c = 48, s = 64, h = {
-  0: "kCCEncrypt",
-  1: "kCCEncrypt",
-  3: "kCCBoth"
-}, g = {
-  0: "kCCAlgorithmAES",
-  1: "kCCAlgorithmDES",
-  2: "kCCAlgorithm3DES",
-  3: "kCCAlgorithmCAST",
-  4: "kCCAlgorithmRC4",
-  5: "kCCAlgorithmRC2",
-  6: "kCCAlgorithmBlowfish"
-}, C = {
-  1: "kCCOptionPKCS7Padding",
-  2: "kCCOptionECBMode"
-}, u = {
-  1: "kCCModeECB",
-  2: "kCCModeCBC",
-  3: "kCCModeCFB",
-  4: "kCCModeCTR",
-  5: "kCCModeF8",
-  6: "kCCModeLRW",
-  7: "kCCModeOFB",
-  8: "kCCModeXTS",
-  9: "kCCModeRC4",
-  10: "kCCModeCFB8",
-  11: "kCCModeGCM",
-  12: "kCCModeCCM"
-}, d = {
-  0: "ccNoPadding",
-  1: "ccPKCS7Padding",
-  12: "ccCBCCTS3"
-}, m = {
-  1: "kCCModeOptionCTR_LE",
-  2: "kCCModeOptionCTR_BE"
-}, p = {
-  16: "kCCKeySizeAES128|kCCKeySizeMaxCAST",
-  24: "kCCKeySizeAES192|kCCKeySize3DES",
-  32: "kCCKeySizeAES256",
-  8: "kCCKeySizeDES|kCCKeySizeMinBlowfish",
-  5: "kCCKeySizeMinCAST",
-  1: "kCCKeySizeMinRC4|kCCKeySizeMinRC2",
-  512: "kCCKeySizeMaxRC4",
-  128: "kCCKeySizeMaxRC2",
-  56: "kCCKeySizeMaxBlowfish"
-}, y = {
-  0: "kCCHmacAlgSHA1",
-  1: "kCCHmacAlgMD5",
-  2: "kCCHmacAlgSHA256",
-  3: "kCCHmacAlgSHA384",
-  4: "kCCHmacAlgSHA512",
-  5: "kCCHmacAlgSHA224"
-}, f = {
-  0: l,
-  1: a,
-  2: i,
-  3: c,
-  4: s,
-  5: r
-}, b = {
-  1: "kCCPRFHmacAlgSHA1",
-  2: "kCCPRFHmacAlgSHA224",
-  3: "kCCPRFHmacAlgSHA256",
-  4: "kCCPRFHmacAlgSHA384",
-  5: "kCCPRFHmacAlgSHA512"
-}, k = {
-  2: "kCCPBKDF2"
+    /*************************************************************************************
+     * Name: frida-ios-cipher
+     * OS: iOS
+     * Author: @shlu
+     * Source: https://github.com/xpko/frida-ios-cipher
+     * Desc: Intercept all cryptography-related functions on iOS with Frida Api.
+     * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-36064/CommonCrypto/CommonCryptor.h
+     * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_MD5.3cc.html#//apple_ref/doc/man/3cc/CC_MD5
+     * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CC_SHA.3cc.html#//apple_ref/doc/man/3cc/CC_SHA
+     * refs:https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/CCCryptor.3cc.html#//apple_ref/doc/man/3cc/CCCryptor
+     * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-55010/CommonCrypto/CommonKeyDerivation.h.auto.html
+     * refs:https://www.cnblogs.com/cocoajin/p/6150203.html
+     * refs:https://frida.re/docs/javascript-api/
+     * refs:https://codeshare.frida.re/@xperylab/cccrypt-dump/
+     * refs:https://github.com/federicodotta/Brida
+     * refs:https://github.com/sensepost/objection/blob/master/agent/src/ios/crypto.ts
+     * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/CommonCryptor.c.auto.html
+     * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60026/CommonCrypto/CommonCryptor.h.auto.html
+     * refs:https://www.jianshu.com/p/8896ed432dff
+     * refs:https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60118.200.6/lib/
+     * refs:https://blog.csdn.net/q187543/article/details/103920969
+     * refs:https://github.com/ptoomey3/Keychain-Dumper/blob/master/main.m
+     * refs:https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
+     * refs:https://codeshare.frida.re/@Shapa7276/ios-keychain-update/
+     * refs:https://github.com/FSecureLABS/needle/blob/master/needle/modules/storage/data/keychain_dump_frida.py
+     **************************************************************************************/
+//config
+    const CIPHER_CONFIG = {
+      "enable": true,
+      "highlighting": true,
+      "crypto": {
+        "enable": true,
+        "maxDataLength": 240,
+        "printStack": false,
+        "aes": true,
+        "des": true,
+        "3des": true,
+        "cast": true,
+        "rc4": true,
+        "rc2": true,
+        "blowfish": true,
+        "filter": []
+      },
+      "hash": {
+        "enable": true,
+        "maxInputDataLength": 240,
+        "printStack": false,
+        "md2": true,
+        "md4": true,
+        "md5": true,
+        "sha1": true,
+        "sha224": true,
+        "sha256": true,
+        "sha384": true,
+        "sha512": true,
+        "filter": []
+      },
+      "hmac": {
+        "enable": true,
+        "maxInputDataLength": 240,
+        "printStack": false,
+        "sha1": true,
+        "md5": true,
+        "sha224": true,
+        "sha256": true,
+        "sha384": true,
+        "sha512": true,
+        "filter": []
+      },
+      "pbkdf": {
+        "enable": true,
+        "printStack": false,
+        "filter": []
+      },
+      "keychain": {
+        "enable": true,
+        "maxDataLength": 240,
+        "printStack": false,
+        "realtimeIntercept": true,
+        "filter": []
+      }
+    };
+//common
+    const COLORS = {
+      "resetColor": CIPHER_CONFIG.highlighting ? "\x1b[0m" : "",
+      "bold": CIPHER_CONFIG.highlighting ? "\x1b[1m" : "",
+      "dim": CIPHER_CONFIG.highlighting ? "\x1b[2m" : "",
+      "italic": CIPHER_CONFIG.highlighting ? "\x1b[3m" : "",
+      "underline": CIPHER_CONFIG.highlighting ? "\x1b[4m" : "",
+      "blink": CIPHER_CONFIG.highlighting ? "\x1b[5m" : "",
+      "reverse": CIPHER_CONFIG.highlighting ? "\x1b[7m" : "",
+      "hidden": CIPHER_CONFIG.highlighting ? "\x1b[8m" : "",
+      "black": CIPHER_CONFIG.highlighting ? "\x1b[30m" : "",
+      "red": CIPHER_CONFIG.highlighting ? "\x1b[31m" : "",
+      "green": CIPHER_CONFIG.highlighting ? "\x1b[32m" : "",
+      "yellow": CIPHER_CONFIG.highlighting ? "\x1b[33m" : "",
+      "blue": CIPHER_CONFIG.highlighting ? "\x1b[34m" : "",
+      "magenta": CIPHER_CONFIG.highlighting ? "\x1b[35m" : "",
+      "cyan": CIPHER_CONFIG.highlighting ? "\x1b[36m" : "",
+      "white": CIPHER_CONFIG.highlighting ? "\x1b[37m" : "",
+      "bgBlack": CIPHER_CONFIG.highlighting ? "\x1b[40m" : "",
+      "bgRed": CIPHER_CONFIG.highlighting ? "\x1b[41m" : "",
+      "bgGreen": CIPHER_CONFIG.highlighting ? "\x1b[42m" : "",
+      "bgYellow": CIPHER_CONFIG.highlighting ? "\x1b[43m" : "",
+      "bgBlue": CIPHER_CONFIG.highlighting ? "\x1b[44m" : "",
+      "bgMagenta": CIPHER_CONFIG.highlighting ? "\x1b[45m" : "",
+      "bgCyan": CIPHER_CONFIG.highlighting ? "\x1b[46m" : "",
+      "bgWhite": CIPHER_CONFIG.highlighting ? "\x1b[47m" : ""
+    };
+    const CC_MD2_DIGEST_LENGTH = 16;
+    const CC_MD4_DIGEST_LENGTH = 16;
+    const CC_MD5_DIGEST_LENGTH = 16;
+    const CC_SHA1_DIGEST_LENGTH = 20;
+    const CC_SHA224_DIGEST_LENGTH = 28;
+    const CC_SHA256_DIGEST_LENGTH = 32;
+    const CC_SHA384_DIGEST_LENGTH = 48;
+    const CC_SHA512_DIGEST_LENGTH = 64;
+    const CCOperation = {
+      0: "kCCEncrypt",
+      1: "kCCEncrypt",
+      3: "kCCBoth" //Private Cryptor direction (op)
+    };
+    const CCAlgorithm = {
+      0: "kCCAlgorithmAES",
+      1: "kCCAlgorithmDES",
+      2: "kCCAlgorithm3DES",
+      3: "kCCAlgorithmCAST",
+      4: "kCCAlgorithmRC4",
+      5: "kCCAlgorithmRC2",
+      6: "kCCAlgorithmBlowfish"
+    };
+    const CCOptions = {
+      //options for block ciphers
+      1: "kCCOptionPKCS7Padding",
+      2: "kCCOptionECBMode"
+      //stream ciphers currently have no options
+    };
+    const CCMode = {
+      1: "kCCModeECB",
+      2: "kCCModeCBC",
+      3: "kCCModeCFB",
+      4: "kCCModeCTR",
+      5: "kCCModeF8",
+      6: "kCCModeLRW",
+      7: "kCCModeOFB",
+      8: "kCCModeXTS",
+      9: "kCCModeRC4",
+      10: "kCCModeCFB8",
+      11: "kCCModeGCM",
+      12: "kCCModeCCM"
+    };
+    const CCPadding = {
+      0: "ccNoPadding",
+      1: "ccPKCS7Padding",
+      12: "ccCBCCTS3" //Private Paddings
+    };
+    const CCModeOptions = {
+      0x0001: "kCCModeOptionCTR_LE",
+      0x0002: "kCCModeOptionCTR_BE"
+    };
+    const CCKeySize = {
+      16: "kCCKeySizeAES128|kCCKeySizeMaxCAST",
+      24: "kCCKeySizeAES192|kCCKeySize3DES",
+      32: "kCCKeySizeAES256",
+      8: "kCCKeySizeDES|kCCKeySizeMinBlowfish",
+      5: "kCCKeySizeMinCAST",
+      1: "kCCKeySizeMinRC4|kCCKeySizeMinRC2",
+      512: "kCCKeySizeMaxRC4",
+      128: "kCCKeySizeMaxRC2",
+      56: "kCCKeySizeMaxBlowfish"
+    };
+    const CCHmacAlgorithm = {
+      0: "kCCHmacAlgSHA1",
+      1: "kCCHmacAlgMD5",
+      2: "kCCHmacAlgSHA256",
+      3: "kCCHmacAlgSHA384",
+      4: "kCCHmacAlgSHA512",
+      5: "kCCHmacAlgSHA224",
+    };
+    const CCHmacAlgorithmLength = {
+      0: CC_SHA1_DIGEST_LENGTH,
+      1: CC_MD5_DIGEST_LENGTH,
+      2: CC_SHA256_DIGEST_LENGTH,
+      3: CC_SHA384_DIGEST_LENGTH,
+      4: CC_SHA512_DIGEST_LENGTH,
+      5: CC_SHA224_DIGEST_LENGTH,
+    };
+    const CCPseudoRandomAlgorithm = {
+      1: "kCCPRFHmacAlgSHA1",
+      2: "kCCPRFHmacAlgSHA224",
+      3: "kCCPRFHmacAlgSHA256",
+      4: "kCCPRFHmacAlgSHA384",
+      5: "kCCPRFHmacAlgSHA512",
+    };
+    const CCPBKDFAlgorithm = {
+      2: "kCCPBKDF2"
 };
 
-    function S(t, e = 240, o = null) {
-      var n = "";
-  try {
-    if (!t || 0 === t.toInt32() || t.isNull()) return "\n";
-    n = "\n" + hexdump(t, {
-      length: e
-    }) + "\n";
-  } catch (e) {
-    e instanceof Error && console.warn("print_arg error:", e.stack), n = t + "\n";
-  }
-      return null != o && (n = n.split("\n").map((t => o + t)).join("\n")), n;
-}
-
-    function I(t) {
-  try {
-    return !t || 0 === t.toInt32() || t.isNull() ? 0 : parseInt(t.toString());
-  } catch (t) {
-    return t instanceof Error && console.warn("pointerToInt error:", t.stack), 0;
-  }
-}
-
-    function E(t, e) {
-      if (null == e || 0 == e.length) console.log(t); else {
-        var o = !1;
-        for (let n of e) if (null != n && 0 != n.length && (o = !0, t.indexOf(n) >= 0)) return void console.log(t);
-        o || console.log(t);
-      }
-    }
-
-    function O() {
-      return 1 === Process.enumerateThreads().length;
-}
-
-    function A(t) {
-      var e = "";
-      const o = t.split("\n");
-      for (const t of o) {
-        const o = t.split("");
-        o.length <= 58 ? o.splice(o.length, 0, "\n") : (o.splice(o.length, 0, "|\n"), o.splice(59, 0, "|")),
-            o.splice(0, 2), e += o.join("");
-  }
-      return e;
-}
-
-    function M() {
-      function o(e) {
-        switch (e) {
-     case 0:
-      return t.crypto.aes;
-
-     case 1:
-      return t.crypto.des;
-
-     case 2:
-      return t.crypto["3des"];
-
-     case 3:
-      return t.crypto.cast;
-
-     case 4:
-      return t.crypto.rc4;
-
-     case 5:
-      return t.crypto.rc2;
-
-     case 6:
-      return t.crypto.blowfish;
-
-     default:
-      return !0;
-    }
-  }
-
-      let n = Module.findExportByName("libSystem.B.dylib", "CCCrypt");
-      if (null == n) return void console.warn("CCCrypt func is null");
-      Interceptor.attach(n, {
-        onEnter: function (n) {
-          if (this.enable = o(n[1].toInt32()), !this.enable) return;
-          this.log = "", this.log = this.log.concat(e.green, "[*] ENTER CCCrypt", e.resetColor),
-              this.log = this.log.concat(e.yellow, "[+] CCOperation: " + h[n[0].toInt32()], e.resetColor, "\n"),
-              this.log = this.log.concat(e.yellow, "[+] CCAlgorithm: " + g[n[1].toInt32()], e.resetColor, "\n"),
-              this.log = this.log.concat(e.yellow, "[+] CCOptions: " + C[n[2].toInt32()], e.resetColor, "\n"),
-              this.log = this.log.concat(e.yellow, "[+] KeySize: " + p[n[4].toInt32()], e.resetColor, "\n"),
-              this.log = this.log.concat(e.cyan, "[+] Key: \n" + S(n[3], n[4].toInt32()), e.resetColor, "\n"),
-              this.log = this.log.concat(e.cyan, "[+] IV: \n" + S(n[5], 16), e.resetColor, "\n");
-          let a = I(n[7]), l = Math.min(a, t.crypto.maxDataLength);
-          this.log = this.log.concat("[+] Data len: ", l, "/", a, "\n"), this.log = this.log.concat("[+] Data : \n", "\n"),
-              this.log = this.log.concat(S(n[6], l)), this.dataOut = n[8], this.dataOutLength = n[10];
-    },
-        onLeave: function (o) {
-      if (!this.enable) return;
-          let n = I(this.dataOutLength.readPointer()), a = Math.min(n, t.crypto.maxDataLength);
-          this.log = this.log.concat(e.magenta, "[+] Data out len: ", a, "/", n, "\n"), this.log = this.log.concat("[+] Data out: \n", S(this.dataOut, a), "\n", e.resetColor),
-          t.crypto.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-              this.log = this.log.concat(e.green, "[*] EXIT CCCrypt", e.resetColor, "\n"), E(this.log, t.crypto.filter);
-    }
-  });
-  let a = {}, l = Module.findExportByName("libSystem.B.dylib", "CCCryptorCreate");
-  if (null == l) return void console.warn("CCCryptorCreate func is null ");
-  Interceptor.attach(l, {
-    onEnter: function(t) {
-      this.params = [];
-      for (let e = 0; e < 7; e++) this.params.push(t[e]);
-    },
-    onLeave: function(t) {
-      let n = {
-        enable: o(this.params[1]),
-        cRef: this.params[6].readPointer(),
-        dataMap: [],
-        dataOutMap: [],
-        totalLen: 0,
-        totalOutLen: 0,
-        originalLen: 0,
-        originalOutLen: 0,
-        log: "",
-        finish: !1,
-        CCAlgorithm: "",
-        CCOperation: "",
-        CCMode: "",
-        CCKeySize: "",
-        CCModeOptions: "",
-        CCPadding: "",
-        Key: "",
-        Iv: "null",
-        Tweak: "",
-        TweakLen: "",
-        NumRounds: ""
-      };
-      a[I(n.cRef)] = n, n.enable && (n.log = n.log.concat(e.green, "[*] ENTER CCCryptorCreate", e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCOperation: ", n.CCOperation = h[this.params[0].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCAlgorithm: " + g[this.params[1].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.cyan, "[+] Key len: ", n.CCKeySize = p[this.params[4].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.cyan, "[+] Key: \n", n.Key = S(this.params[3], I(this.params[4])), e.resetColor, "\n"),
-          0 != I(this.params[5]) ? n.log = n.log.concat(e.cyan, "[+] Iv:\n", n.Iv = S(this.params[5], 16), e.resetColor, "\n") : n.log = n.log.concat(e.red, "[!] Iv: null", "\n", e.resetColor));
-    }
-  });
-  let r = Module.findExportByName("libSystem.B.dylib", "CCCryptorCreateWithMode");
-  if (null == r) return void console.warn("CCCryptorCreateWithMode func is null ");
-  Interceptor.attach(r, {
-    onEnter: function(t) {
-      this.params = [];
-      for (let e = 0; e < 12; e++) this.params.push(t[e]);
-    },
-    onLeave: function(t) {
-      let n = {
-        enable: o(this.params[2]),
-        cRef: ptr(0),
-        dataMap: [],
-        dataOutMap: [],
-        totalLen: 0,
-        totalOutLen: 0,
-        originalLen: 0,
-        originalOutLen: 0,
-        log: "",
-        finish: !1,
-        CCAlgorithm: "",
-        CCOperation: "",
-        CCMode: "",
-        CCKeySize: "",
-        CCModeOptions: "",
-        CCPadding: "",
-        Key: "",
-        Iv: "null",
-        Tweak: "",
-        TweakLen: "",
-        NumRounds: ""
-      };
+// @ts-ignore
+    function print_arg(addr, len = 240, indent = null) {
+      var result = "";
       try {
-        n.cRef = this.params[11].readPointer();
-      } catch (t) {
-        return void console.log("Error: read CCCryptorRef failed:", t);
-      }
-      if (a[I(n.cRef)] = n, !n.enable) return;
-      n.log = n.log.concat(e.green, "[*] ENTER CCCryptorCreateWithMode", e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCOperation: ", n.CCOperation = h[this.params[0].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCMode: ", n.CCMode = u[this.params[1].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCAlgorithm: ", n.CCAlgorithm = g[this.params[2].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCPadding: ", n.CCPadding = d[this.params[3].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.yellow, "[+] CCModeOptions: ", n.CCModeOptions = m[this.params[10].toInt32()], e.resetColor, "\n");
-      let l = this.params[8].toInt32();
-      l > 0 && 0 != I(this.params[7]) && (n.log = n.log.concat(e.cyan, "[+] tweak len: ", n.TweakLen = l, e.resetColor, "\n"),
-          n.log = n.log.concat(e.cyan, "[+] tweak: \n", n.Tweak = S(this.params[7], I(this.params[8])), e.resetColor, "\n")),
-          n.log = n.log.concat(e.cyan, "[+] numRounds: ", n.NumRounds = this.params[9].toInt32(), e.resetColor, "\n"),
-          n.log = n.log.concat(e.cyan, "[+] Key len: ", n.CCKeySize = p[this.params[6].toInt32()], e.resetColor, "\n"),
-          n.log = n.log.concat(e.cyan, "[+] Key: \n", n.Key = S(this.params[5], I(this.params[6])), e.resetColor, "\n"),
-          0 != I(this.params[4]) ? n.log = n.log.concat(e.cyan, "[+] Iv:\n", n.Iv = S(this.params[4], 16), e.resetColor, "\n") : n.log = n.log.concat(e.red, "[!] Iv: null", "\n", e.resetColor);
-    }
-  });
-  let i = Module.findExportByName("libSystem.B.dylib", "CCCryptorUpdate");
-  if (null == i) return void console.warn("CCCryptorUpdate func is null");
-  Interceptor.attach(i, {
-    onEnter: function(t) {
-      this.params = [];
-      for (let e = 0; e < 6; e++) this.params.push(t[e]);
-    },
-    onLeave: function (o) {
-      let n = a[I(this.params[0])];
-      if (null == n) {
-        n = {
-          enable: t.crypto.enable,
-          cRef: this.params[0],
-          dataMap: [],
-          dataOutMap: [],
-          totalLen: 0,
-          totalOutLen: 0,
-          originalLen: 0,
-          originalOutLen: 0,
-          log: "",
-          finish: !1,
-          CCAlgorithm: "",
-          CCOperation: "",
-          CCMode: "",
-          CCKeySize: "",
-          CCModeOptions: "",
-          CCPadding: "",
-          Key: "",
-          Iv: "",
-          Tweak: "",
-          TweakLen: "",
-          NumRounds: ""
-        }, n.log = n.log.concat(e.green, "[*] ENTER CCCryptorUpdate (note: Cannot be associated with an existing CCCryptorRef, so the data encryption parameters are unknown, However, a list of encryption instances that are currently still being processed can be provided here.)", e.resetColor, "\n"),
-            n.log = n.log.concat(e.blue, "[=] The list is as follows:", e.resetColor, "\n");
-        for (let t in a) {
-          let o = a[t];
-          null == o || o.finish || (n.log = n.log.concat(e.cyan, "[+] CCCryptorRef: ", o.cRef + "(pointer)", " dump:\n", e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCAlgorithm: ", o.CCAlgorithm, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCOperation: ", o.CCOperation, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCMode: ", o.CCMode, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCKeySize: ", o.CCKeySize, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCModeOptions: ", o.CCModeOptions, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : CCPadding: ", o.CCPadding, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : Key: ", o.Key, e.resetColor, "\n"), n.log = n.log.concat(e.yellow, "[+] : Iv: ", o.Iv, e.resetColor, "\n"),
-          parseInt(o.TweakLen) > 0 && (n.log = n.log.concat(e.yellow, "[+] : TweakLen: ", o.TweakLen, e.resetColor, "\n"),
-              n.log = n.log.concat(e.yellow, "[+] : Tweak: ", o.Tweak, e.resetColor, "\n")), n.log = n.log.concat(e.yellow, "[+] : NumRounds: ", o.NumRounds, e.resetColor, "\n"));
+        if (!addr || addr.toInt32() === 0 || addr.isNull())
+          return "\n";
+        result = "\n" + (hexdump(addr, {length: len})) + "\n";
+      } catch (e) {
+        if (e instanceof Error) {
+          console.warn("print_arg error:", e.stack);
         }
-        n.log = n.log.concat(e.blue, "[=] End of list", e.resetColor, "\n"), a[I(this.params[0])] = n;
+        result = addr + "\n";
       }
-      if (!n.enable) return;
-      n.originalLen += this.params[2].toInt32();
-      let l = t.crypto.maxDataLength - n.totalLen, r = I(this.params[2]);
-      if (r > 0 && l > 0) {
-        let t = Math.min(r, l), e = Memory.alloc(t);
-        Memory.copy(e, this.params[1], t), n.dataMap.push({
-          data: e,
-          len: t
-        }), n.totalLen += t;
+      if (indent != null) {
+        result = result.split('\n')
+            .map(line => indent + line)
+            .join('\n');
       }
-      let i = t.crypto.maxDataLength - n.totalOutLen, c = I(this.params[5].readPointer());
-      if (n.originalOutLen += c, c > 0 && i > 0) {
-        let t = Math.min(c, i), e = Memory.alloc(t);
-        Memory.copy(e, this.params[3], t), n.dataOutMap.push({
-          data: e,
-          len: t
-        }), n.totalOutLen += t;
+      return result;
+    }
+
+    function pointerToInt(ptr) {
+      try {
+        if (!ptr || ptr.toInt32() === 0 || ptr.isNull())
+          return 0;
+        return parseInt(ptr.toString());
+      } catch (e) {
+        if (e instanceof Error) {
+          console.warn("pointerToInt error:", e.stack);
+        }
+        return 0;
       }
     }
-  });
-  let c = Module.findExportByName("libSystem.B.dylib", "CCCryptorFinal");
-  null != c ? Interceptor.attach(c, {
-    onEnter: function(t) {
-      this.params = [];
-      for (let e = 0; e < 4; e++) this.params.push(t[e]);
-    },
-    onLeave: function (o) {
-      let n = a[I(this.params[0])];
-      if (null == n) return void console.warn("CCCryptorFinal model is null");
-      if (!n.enable) return;
-      if (n.totalOutLen < t.crypto.maxDataLength) {
-        let e = t.crypto.maxDataLength - n.totalOutLen, o = I(this.params[3].readPointer());
-        if (n.originalOutLen += o, o > 0 && e > 0) {
-          let t = Math.min(o, e), a = Memory.alloc(t);
-          Memory.copy(a, this.params[1], t), n.dataOutMap.push({
-            data: a,
-            len: t
-          }), n.totalOutLen += t;
+
+    function filterLog(msg, filter) {
+      if (filter == null || filter.length == 0) {
+        console.log(msg);
+      } else {
+        var hasFilter = false;
+        for (let value of filter) {
+          if (value == null || value.length == 0)
+            continue;
+          hasFilter = true;
+          if (msg.indexOf(value) >= 0) {
+            console.log(msg);
+            return;
+          }
+        }
+        if (!hasFilter) {
+          console.log(msg);
         }
       }
-      let l = Memory.alloc(n.totalLen);
-      var r = 0;
-      n.dataMap.forEach((function (t) {
-        Memory.copy(l.add(r), t.data, t.len), r += t.len;
-      }));
-      let i = Memory.alloc(n.totalOutLen);
-      var c = 0;
-      n.dataOutMap.forEach((function (t) {
-        Memory.copy(i.add(c), t.data, t.len), c += t.len;
-      })), n.log = n.log.concat("[+] Data len: " + n.totalLen + "/" + n.originalLen + "\n"),
-          n.log = n.log.concat("[+] Data : \n", S(l, n.totalLen), "\n"), n.log = n.log.concat(e.magenta, "[+] Data out len: " + n.totalOutLen + "/" + n.originalOutLen + "\n"),
-          n.log = n.log.concat("[+] Data out: \n", S(i, n.totalOutLen), "\n", e.resetColor),
-      t.crypto.printStack && (n.log = n.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-          n.log = n.log.concat(e.green, "[*] EXIT CCCryptorFinal ", e.resetColor, "\n"), n.finish = !0,
-          E(n.log, t.crypto.filter);
     }
-  }) : console.warn("CCCryptorFinal func is null");
-}
 
-    function L(o, n) {
-      let a = Module.findExportByName("libSystem.B.dylib", o);
-  null != a ? (Interceptor.attach(a, {
-    onEnter: function (n) {
-      this.log = "", this.log = this.log.concat(e.green, "[*] ENTER ", o, e.resetColor, "\n");
-      let a = n[1].toInt32(), l = Math.min(a, t.hash.maxInputDataLength);
-      this.log = this.log.concat("[+] Data len: ", l, "/", a, "\n"), this.log = this.log.concat("[+] Data: \n", S(n[0], l), "\n");
-    },
-    onLeave: function (a) {
-      this.log = this.log.concat(e.magenta, "[+] Data out len: " + n, e.resetColor, "\n"),
-          this.log = this.log.concat(e.magenta, "[+] Data out:\n", S(a, n), e.resetColor, "\n"),
-      t.hash.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-          this.log = this.log.concat(e.green, "[*] EXIT ", o, e.resetColor, "\n"), E(this.log, t.hash.filter);
+    function isSpawned() {
+      return Process.enumerateThreads().length === 1;
     }
-  }), function() {
-    let a = {}, l = Module.findExportByName("libSystem.B.dylib", o + "_Init");
-    if (null == l) return void console.warn(o + "_Init func is null");
-    Interceptor.attach(l, {
-      onEnter: function(t) {
-        let n = {
-          ctx: t[0],
-          dataMap: [],
-          totalLen: 0,
-          originalLen: 0,
-          log: ""
-        };
-        a[I(t[0])] = n, n.log = n.log.concat(e.green, "[*] ENTER " + o + "_Init\n", e.resetColor);
-      }
-    });
-    let r = Module.findExportByName("libSystem.B.dylib", o + "_Update");
-    if (null == r) return void console.warn(o + "_Update func is null");
-    Interceptor.attach(r, {
-      onEnter: function (e) {
-        let o = a[I(e[0])];
-        if (null == o) return void console.warn("model is null");
-        let n = I(e[2]), l = t.hash.maxInputDataLength - o.totalLen;
-        if (n > 0 && l > 0) {
-          o.originalLen += n;
-          let t = Math.min(n, l), a = Memory.alloc(t);
-          Memory.copy(a, e[1], t), o.dataMap.push({
-            data: a,
-            len: t
-          }), o.totalLen += t;
+
+    function fixHexDump(hex) {
+      // @ts-ignore
+      var ret = "";
+      const lines = hex.split("\n");
+      for (const line of lines) {
+        const parts = line.split("");
+        if (parts.length <= 58) {
+          parts.splice(parts.length, 0, '\n');
+        } else {
+          parts.splice(parts.length, 0, '|\n');
+          parts.splice(59, 0, '|');
         }
+        parts.splice(0, 2);
+        ret += parts.join("");
       }
-    });
-    let i = Module.findExportByName("libSystem.B.dylib", o + "_Final");
-    null != i ? Interceptor.attach(i, {
-      onEnter: function(t) {
-        this.mdSha = t[0], this.ctxSha = t[1];
-      },
-      onLeave: function (l) {
-        let r = a[I(this.ctxSha)];
-        if (null == r) return void console.warn(o + "_Final model is null");
-        if (r.totalLen <= 0) return void console.warn("totalLen :", r.totalLen);
-        let i = Memory.alloc(r.totalLen);
-        var c = 0;
-        r.dataMap.forEach((function(t) {
-          Memory.copy(i.add(c), t.data, t.len), c += t.len;
-        })), r.log = r.log.concat("[+] Data len: " + r.totalLen + "/" + r.originalLen + "\n"),
-            r.log = r.log.concat("[+] Data :\n"), r.log = r.log.concat(S(i, r.totalLen), "\n"),
-            0 !== I(this.mdSha) ? (r.log = r.log.concat(e.magenta, "[+] Data out len: " + n + "\n"),
-                r.log = r.log.concat("[+] Data out:\n"), r.log = r.log.concat(S(ptr(this.mdSha), n), "\n", e.resetColor)) : r.log = r.log.concat(e.red, "[!]: Data out: null\n", e.resetColor),
-        t.hash.printStack && (r.log = r.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-            r.log = r.log.concat(e.green, "[*] EXIT " + o + "_Final\n", e.resetColor), E(r.log, t.hash.filter);
-      }
-    }) : console.warn(o + "_Final func is null");
-  }()) : console.warn(o + " func is null");
-}
-
-    function w() {
-      function o(e) {
-        switch (e) {
-     case 0:
-      return t.hmac.sha1;
-
-     case 1:
-      return t.hmac.md5;
-
-     case 2:
-      return t.hmac.sha256;
-
-     case 3:
-      return t.hmac.sha384;
-
-     case 4:
-      return t.hmac.sha512;
-
-     case 5:
-      return t.hmac.sha224;
-
-     default:
-      return !0;
+      return ret;
     }
-  }
 
-      let n = "CCHmac", a = Module.findExportByName("libSystem.B.dylib", n);
-  null != a ? (Interceptor.attach(a, {
-    onEnter: function (a) {
-      if (this.enable = o(a[0].toInt32()), !this.enable) return;
-      this.mdLen = f[a[0].toInt32()], this.log = "", this.log = this.log.concat(e.green, "[*] ENTER ", n, "\n"),
-          this.log = this.log.concat(e.yellow, "[+] Algorithm: ", y[a[0].toInt32()], "\n", e.resetColor),
-          this.log = this.log.concat(e.cyan, "[+] Key len: ", a[2].toInt32(), "\n"), this.log = this.log.concat(e.cyan, "[+] Key : \n", S(a[1], a[2].toInt32()), "\n", e.resetColor);
-      let l = a[4].toInt32(), r = Math.min(l, t.hmac.maxInputDataLength);
-      this.log = this.log.concat("[+] Data len: ", r, "/", l, "\n"), this.log = this.log.concat("[+] Data: \n", S(a[3], r), "\n"),
-          this.macOut = a[5];
-    },
-    onLeave: function (o) {
-      this.enable && (this.log = this.log.concat(e.magenta, "[+] Data out len: " + this.mdLen, e.resetColor, "\n"),
-          this.log = this.log.concat(e.magenta, "[+] Data out:\n", S(this.macOut, this.mdLen), e.resetColor, "\n"),
-      t.hmac.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-          this.log = this.log.concat(e.green, "[*] EXIT ", n, e.resetColor, "\n"), E(this.log, t.hmac.filter));
-    }
-  }), function() {
-    let a = {}, l = Module.findExportByName("libSystem.B.dylib", n + "Init");
-    if (null == l) return void console.warn(n + "Init func is null");
-    Interceptor.attach(l, {
-      onEnter: function(t) {
-        let l = {
-          ctx: t[0],
-          dataMap: [],
-          totalLen: 0,
-          originalLen: 0,
-          log: "",
-          mdLen: f[t[1].toInt32()],
-          enable: o(t[1].toInt32())
-        };
-        a[I(t[0])] = l, l.enable && (l.log = l.log.concat(e.green, "[*] ENTER " + n + "Init\n", e.resetColor),
-            l.log = l.log.concat(e.yellow, "[+] Algorithm: " + y[t[1].toInt32()] + "\n", e.resetColor),
-            l.log = l.log.concat(e.cyan, "[+] Key len: " + t[3].toInt32() + e.resetColor + "\n"),
-            l.log = l.log.concat(e.cyan, "[+] Key: \n" + S(t[2], I(t[3])) + "\n", e.resetColor));
-      }
-    });
-    let r = Module.findExportByName("libSystem.B.dylib", n + "Update");
-    if (null == r) return void console.warn(n + "Update func is null");
-    Interceptor.attach(r, {
-      onEnter: function (e) {
-        let o = a[I(e[0])];
-        if (null == o) return void console.warn(n + "Update model is null");
-        if (!o.enable) return;
-        let l = I(e[2]), r = t.hmac.maxInputDataLength - o.totalLen;
-        if (l > 0 && r > 0) {
-          o.originalLen += l;
-          let t = Math.min(l, r), n = Memory.alloc(t);
-          Memory.copy(n, e[1], t), o.dataMap.push({
-            data: n,
-            len: t
-          }), o.totalLen += t;
+    function commonCryptoInterceptor() {
+      function checkCryptoAlgorithmEnable(algorithm) {
+        switch (algorithm) {
+          case 0:
+            return CIPHER_CONFIG.crypto.aes;
+          case 1:
+            return CIPHER_CONFIG.crypto.des;
+          case 2:
+            return CIPHER_CONFIG.crypto["3des"];
+          case 3:
+            return CIPHER_CONFIG.crypto.cast;
+          case 4:
+            return CIPHER_CONFIG.crypto.rc4;
+          case 5:
+            return CIPHER_CONFIG.crypto.rc2;
+          case 6:
+            return CIPHER_CONFIG.crypto.blowfish;
+          default:
+            return true;
         }
+    }
+
+      //CCCryptorStatus CCCrypt(
+      // 	CCOperation op,			/* kCCEncrypt, etc. */
+      // 	CCAlgorithm alg,		/* kCCAlgorithmAES128, etc. */
+      // 	CCOptions options,		/* kCCOptionPKCS7Padding, etc. */
+      // 	const void *key,
+      // 	size_t keyLength,
+      // 	const void *iv,			/* optional initialization vector */
+      // 	const void *dataIn,		/* optional per op and alg */
+      // 	size_t dataInLength,
+      // 	void *dataOut,			/* data RETURNED here */
+      // 	size_t dataOutAvailable,
+      // 	size_t *dataOutMoved);
+      let func = Module.findExportByName("libSystem.B.dylib", "CCCrypt");
+      if (func == null) {
+        console.warn("CCCrypt func is null");
+        return;
       }
+      Interceptor.attach(func, {
+        onEnter: function (args) {
+          this.enable = checkCryptoAlgorithmEnable(args[1].toInt32());
+          if (!this.enable)
+            return;
+          this.log = "";
+          this.log = this.log.concat(COLORS.green, "[*] ENTER CCCrypt", COLORS.resetColor);
+          this.log = this.log.concat(COLORS.yellow, "[+] CCOperation: " + CCOperation[args[0].toInt32()], COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.yellow, "[+] CCAlgorithm: " + CCAlgorithm[args[1].toInt32()], COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.yellow, "[+] CCOptions: " + CCOptions[args[2].toInt32()], COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.yellow, "[+] KeySize: " + CCKeySize[args[4].toInt32()], COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] Key: \n" + print_arg(args[3], args[4].toInt32()), COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] IV: \n" + print_arg(args[5], 16), COLORS.resetColor, "\n");
+          let dataInLength = pointerToInt(args[7]);
+          let printLength = Math.min(dataInLength, CIPHER_CONFIG.crypto.maxDataLength);
+          this.log = this.log.concat("[+] Data len: ", printLength, "/", dataInLength, "\n");
+          this.log = this.log.concat("[+] Data : \n", "\n");
+          this.log = this.log.concat(print_arg(args[6], printLength));
+          this.dataOut = args[8];
+          this.dataOutLength = args[10];
+        },
+        onLeave: function (retval) {
+          if (!this.enable)
+            return;
+          let dataOutLen = pointerToInt(this.dataOutLength.readPointer());
+          let printOutLen = Math.min(dataOutLen, CIPHER_CONFIG.crypto.maxDataLength);
+          this.log = this.log.concat(COLORS.magenta, "[+] Data out len: ", printOutLen, "/", dataOutLen, "\n");
+          this.log = this.log.concat("[+] Data out: \n", print_arg(this.dataOut, printOutLen), "\n", COLORS.resetColor);
+          if (CIPHER_CONFIG.crypto.printStack) {
+            this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          this.log = this.log.concat(COLORS.green, "[*] EXIT CCCrypt", COLORS.resetColor, "\n");
+          filterLog(this.log, CIPHER_CONFIG.crypto.filter);
+        }
+      });
+      let cRefCache = {};
+      //CCCryptorStatus CCCryptorCreate(CCOperation op, CCAlgorithm alg, CCOptions options, const void *key, size_t keyLength, const void *iv,CCCryptorRef *cryptorRef);
+      let CCCryptorCreate = Module.findExportByName("libSystem.B.dylib", "CCCryptorCreate");
+      if (CCCryptorCreate == null) {
+        console.warn("CCCryptorCreate func is null ");
+        return;
+      }
+      Interceptor.attach(CCCryptorCreate, {
+        onEnter: function (args) {
+          this.params = [];
+          for (let i = 0; i < 7; i++) {
+            this.params.push(args[i]);
+          }
+        },
+        onLeave: function (reval) {
+          let model = {
+            enable: checkCryptoAlgorithmEnable(this.params[1]),
+            cRef: this.params[6].readPointer(),
+            dataMap: [],
+            dataOutMap: [],
+            totalLen: 0,
+            totalOutLen: 0,
+            originalLen: 0,
+            originalOutLen: 0,
+            log: "",
+            finish: false,
+            CCAlgorithm: "",
+            CCOperation: "",
+            CCMode: "",
+            CCKeySize: "",
+            CCModeOptions: "",
+            CCPadding: "",
+            Key: "",
+            Iv: "null",
+            Tweak: "",
+            TweakLen: "",
+            NumRounds: ""
+          };
+          cRefCache[pointerToInt(model.cRef)] = model;
+          if (!model.enable)
+            return;
+          model.log = model.log.concat(COLORS.green, "[*] ENTER CCCryptorCreate", COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCOperation: ", model.CCOperation = CCOperation[this.params[0].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCAlgorithm: " + CCAlgorithm[this.params[1].toInt32()], COLORS.resetColor, "\n");
+          // model.log=model.log.concat(COLORS.yellow,"[+] CCOptions: " + CCOptions[this.options.toInt32()],COLORS.resetColor,"\n");
+          model.log = model.log.concat(COLORS.cyan, "[+] Key len: ", model.CCKeySize = CCKeySize[this.params[4].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.cyan, "[+] Key: \n", model.Key = print_arg(this.params[3], pointerToInt(this.params[4])), COLORS.resetColor, "\n");
+          if (pointerToInt(this.params[5]) != 0) {
+            model.log = model.log.concat(COLORS.cyan, "[+] Iv:\n", model.Iv = print_arg(this.params[5], 16), COLORS.resetColor, "\n");
+          } else {
+            model.log = model.log.concat(COLORS.red, "[!] Iv: null", "\n", COLORS.resetColor);
+          }
+        }
+      });
+      //CCCryptorStatus CCCryptorCreateWithMode(
+      //     CCOperation 	op,				/* kCCEncrypt, kCCEncrypt */
+      //     CCMode			mode,
+      //     CCAlgorithm		alg,
+      //     CCPadding		padding,
+      //     const void 		*iv,			/* optional initialization vector */
+      //     const void 		*key,			/* raw key material */
+      //     size_t 			keyLength,
+      //     const void 		*tweak,			/* raw tweak material */  //for mode: XTS
+      //     size_t 			tweakLength,
+      //     int				numRounds,		/* 0 == default */
+      //     CCModeOptions 	options,
+      //     CCCryptorRef	*cryptorRef)	/* RETURNED */
+      let CCCryptorCreateWithMode = Module.findExportByName("libSystem.B.dylib", "CCCryptorCreateWithMode");
+      if (CCCryptorCreateWithMode == null) {
+        console.warn("CCCryptorCreateWithMode func is null ");
+        return;
+      }
+      Interceptor.attach(CCCryptorCreateWithMode, {
+        onEnter: function (args) {
+          this.params = [];
+          for (let i = 0; i < 12; i++) {
+            this.params.push(args[i]);
+          }
+        },
+        onLeave: function (reval) {
+          let model = {
+            enable: checkCryptoAlgorithmEnable(this.params[2]),
+            cRef: ptr(0),
+            dataMap: [],
+            dataOutMap: [],
+            totalLen: 0,
+            totalOutLen: 0,
+            originalLen: 0,
+            originalOutLen: 0,
+            log: "",
+            finish: false,
+            CCAlgorithm: "",
+            CCOperation: "",
+            CCMode: "",
+            CCKeySize: "",
+            CCModeOptions: "",
+            CCPadding: "",
+            Key: "",
+            Iv: "null",
+            Tweak: "",
+            TweakLen: "",
+            NumRounds: ""
+          };
+          try {
+            model.cRef = this.params[11].readPointer();
+          } catch (e) {
+            console.log("Error: read CCCryptorRef failed:", e);
+            return;
+          }
+          cRefCache[pointerToInt(model.cRef)] = model;
+          if (!model.enable)
+            return;
+          model.log = model.log.concat(COLORS.green, "[*] ENTER CCCryptorCreateWithMode", COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCOperation: ", model.CCOperation = CCOperation[this.params[0].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCMode: ", model.CCMode = CCMode[this.params[1].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCAlgorithm: ", model.CCAlgorithm = CCAlgorithm[this.params[2].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCPadding: ", model.CCPadding = CCPadding[this.params[3].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.yellow, "[+] CCModeOptions: ", model.CCModeOptions = CCModeOptions[this.params[10].toInt32()], COLORS.resetColor, "\n");
+          let tweakLen = this.params[8].toInt32();
+          if (tweakLen > 0 && pointerToInt(this.params[7]) != 0) {
+            model.log = model.log.concat(COLORS.cyan, "[+] tweak len: ", model.TweakLen = tweakLen, COLORS.resetColor, "\n");
+            model.log = model.log.concat(COLORS.cyan, "[+] tweak: \n", model.Tweak = print_arg(this.params[7], pointerToInt(this.params[8])), COLORS.resetColor, "\n");
+          }
+          model.log = model.log.concat(COLORS.cyan, "[+] numRounds: ", model.NumRounds = this.params[9].toInt32(), COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.cyan, "[+] Key len: ", model.CCKeySize = CCKeySize[this.params[6].toInt32()], COLORS.resetColor, "\n");
+          model.log = model.log.concat(COLORS.cyan, "[+] Key: \n", model.Key = print_arg(this.params[5], pointerToInt(this.params[6])), COLORS.resetColor, "\n");
+          if (pointerToInt(this.params[4]) != 0) {
+            model.log = model.log.concat(COLORS.cyan, "[+] Iv:\n", model.Iv = print_arg(this.params[4], 16), COLORS.resetColor, "\n");
+          } else {
+            model.log = model.log.concat(COLORS.red, "[!] Iv: null", "\n", COLORS.resetColor);
+          }
+        }
+      });
+      //CCCryptorStatus CCCryptorUpdate(CCCryptorRef cryptorRef, const void *dataIn,size_t dataInLength, void *dataOut, size_t dataOutAvailable,size_t *dataOutMoved);
+      let CCCryptorUpdate = Module.findExportByName("libSystem.B.dylib", "CCCryptorUpdate");
+      if (CCCryptorUpdate == null) {
+        console.warn("CCCryptorUpdate func is null");
+        return;
+      }
+      Interceptor.attach(CCCryptorUpdate, {
+        onEnter: function (args) {
+          this.params = [];
+          for (let i = 0; i < 6; i++) {
+            this.params.push(args[i]);
+          }
+        },
+        onLeave: function (retval) {
+          let model = cRefCache[pointerToInt(this.params[0])];
+          if (model == null) {
+            model = {
+              enable: CIPHER_CONFIG.crypto.enable,
+              cRef: this.params[0],
+              dataMap: [],
+              dataOutMap: [],
+              totalLen: 0,
+              totalOutLen: 0,
+              originalLen: 0,
+              originalOutLen: 0,
+              log: "",
+              finish: false,
+              CCAlgorithm: "",
+              CCOperation: "",
+              CCMode: "",
+              CCKeySize: "",
+              CCModeOptions: "",
+              CCPadding: "",
+              Key: "",
+              Iv: "",
+              Tweak: "",
+              TweakLen: "",
+              NumRounds: ""
+            };
+            model.log = model.log.concat(COLORS.green, "[*] ENTER CCCryptorUpdate (note: Cannot be associated with an existing CCCryptorRef, so the data encryption parameters are unknown, However, a list of encryption instances that are currently still being processed can be provided here.)", COLORS.resetColor, "\n");
+            model.log = model.log.concat(COLORS.blue, "[=] The list is as follows:", COLORS.resetColor, "\n");
+            for (let cRefCacheKey in cRefCache) {
+              let value = cRefCache[cRefCacheKey];
+              if (value != null && !value.finish) {
+                model.log = model.log.concat(COLORS.cyan, "[+] CCCryptorRef: ", "" + value.cRef + "(pointer)", " dump:\n", COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCAlgorithm: ", value.CCAlgorithm, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCOperation: ", value.CCOperation, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCMode: ", value.CCMode, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCKeySize: ", value.CCKeySize, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCModeOptions: ", value.CCModeOptions, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : CCPadding: ", value.CCPadding, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : Key: ", value.Key, COLORS.resetColor, "\n");
+                model.log = model.log.concat(COLORS.yellow, "[+] : Iv: ", value.Iv, COLORS.resetColor, "\n");
+                if (parseInt(value.TweakLen) > 0) {
+                  model.log = model.log.concat(COLORS.yellow, "[+] : TweakLen: ", value.TweakLen, COLORS.resetColor, "\n");
+                  model.log = model.log.concat(COLORS.yellow, "[+] : Tweak: ", value.Tweak, COLORS.resetColor, "\n");
+                }
+                model.log = model.log.concat(COLORS.yellow, "[+] : NumRounds: ", value.NumRounds, COLORS.resetColor, "\n");
+              }
+            }
+            model.log = model.log.concat(COLORS.blue, "[=] End of list", COLORS.resetColor, "\n");
+            cRefCache[pointerToInt(this.params[0])] = model;
+          }
+          if (!model.enable)
+            return;
+          model.originalLen += this.params[2].toInt32();
+          let remainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalLen;
+          let dataLen = pointerToInt(this.params[2]);
+          if (dataLen > 0 && remainingSpace > 0) {
+            let copyLength = Math.min(dataLen, remainingSpace);
+            let tmpData = Memory.alloc(copyLength);
+            Memory.copy(tmpData, this.params[1], copyLength);
+            model.dataMap.push({data: tmpData, len: copyLength});
+            model.totalLen += copyLength;
+          }
+          let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
+          let outLen = pointerToInt(this.params[5].readPointer());
+          model.originalOutLen += outLen;
+          if (outLen > 0 && outRemainingSpace > 0) {
+            let copyLength = Math.min(outLen, outRemainingSpace);
+            let tmpDataOut = Memory.alloc(copyLength);
+            Memory.copy(tmpDataOut, this.params[3], copyLength);
+            model.dataOutMap.push({data: tmpDataOut, len: copyLength});
+            model.totalOutLen += copyLength;
+          }
+        }
+      });
+      //CCCryptorStatus CCCryptorFinal(CCCryptorRef cryptorRef, void *dataOut,size_t dataOutAvailable, size_t *dataOutMoved);
+      let CCCryptorFinal = Module.findExportByName("libSystem.B.dylib", "CCCryptorFinal");
+      if (CCCryptorFinal == null) {
+        console.warn("CCCryptorFinal func is null");
+        return;
+      }
+      Interceptor.attach(CCCryptorFinal, {
+        onEnter: function (args) {
+          this.params = [];
+          for (let i = 0; i < 4; i++) {
+            this.params.push(args[i]);
+          }
+        },
+        onLeave: function (retval) {
+          let model = cRefCache[pointerToInt(this.params[0])];
+          if (model == null) {
+            console.warn("CCCryptorFinal model is null");
+            return;
+          }
+          if (!model.enable)
+            return;
+          if (model.totalOutLen < CIPHER_CONFIG.crypto.maxDataLength) {
+            let outRemainingSpace = CIPHER_CONFIG.crypto.maxDataLength - model.totalOutLen;
+            let outLen = pointerToInt(this.params[3].readPointer());
+            model.originalOutLen += outLen;
+            if (outLen > 0 && outRemainingSpace > 0) {
+              let copyLength = Math.min(outLen, outRemainingSpace);
+              let tmpDataOut = Memory.alloc(copyLength);
+              Memory.copy(tmpDataOut, this.params[1], copyLength);
+              model.dataOutMap.push({data: tmpDataOut, len: copyLength});
+              model.totalOutLen += copyLength;
+            }
+          }
+          let totalData = Memory.alloc(model.totalLen);
+          var offset = 0;
+          model.dataMap.forEach(function (value) {
+            Memory.copy(totalData.add(offset), value.data, value.len);
+            offset += value.len;
+          });
+          let totalOutData = Memory.alloc(model.totalOutLen);
+          var offsetOut = 0;
+          model.dataOutMap.forEach(function (value) {
+            Memory.copy(totalOutData.add(offsetOut), value.data, value.len);
+            offsetOut += value.len;
+          });
+          model.log = model.log.concat("[+] Data len: " + model.totalLen + "/" + model.originalLen + "\n");
+          model.log = model.log.concat("[+] Data : \n", print_arg(totalData, model.totalLen), "\n");
+          model.log = model.log.concat(COLORS.magenta, "[+] Data out len: " + model.totalOutLen + "/" + model.originalOutLen + "\n");
+          model.log = model.log.concat("[+] Data out: \n", print_arg(totalOutData, model.totalOutLen), "\n", COLORS.resetColor);
+          if (CIPHER_CONFIG.crypto.printStack) {
+            model.log = model.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          model.log = model.log.concat(COLORS.green, "[*] EXIT CCCryptorFinal ", COLORS.resetColor, "\n");
+          model.finish = true;
+          filterLog(model.log, CIPHER_CONFIG.crypto.filter);
+        }
+      });
+    }
+
+    function commonHashInterceptor(name, length) {
+      let hash = Module.findExportByName("libSystem.B.dylib", name);
+      if (hash == null) {
+        console.warn(name + " func is null");
+        return;
+      }
+      Interceptor.attach(hash, {
+        onEnter: function (args) {
+          this.log = "";
+          this.log = this.log.concat(COLORS.green, "[*] ENTER ", name, COLORS.resetColor, "\n");
+          let dataLen = args[1].toInt32();
+          let printLen = Math.min(dataLen, CIPHER_CONFIG.hash.maxInputDataLength);
+          this.log = this.log.concat("[+] Data len: ", printLen, "/", dataLen, "\n");
+          this.log = this.log.concat("[+] Data: \n", print_arg(args[0], printLen), "\n");
+        },
+        onLeave: function (reval) {
+          this.log = this.log.concat(COLORS.magenta, "[+] Data out len: " + length, COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.magenta, "[+] Data out:\n", print_arg(reval, length), COLORS.resetColor, "\n");
+          if (CIPHER_CONFIG.hash.printStack) {
+            this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          this.log = this.log.concat(COLORS.green, "[*] EXIT ", name, COLORS.resetColor, "\n");
+          filterLog(this.log, CIPHER_CONFIG.hash.filter);
+        }
+      });
+      (function () {
+        let ctxCache = {};
+        //CC_SHA1_Init(CC_SHA1_CTX *c);
+        let init = Module.findExportByName("libSystem.B.dylib", name + "_Init");
+        if (init == null) {
+          console.warn(name + "_Init func is null");
+          return;
+        }
+        Interceptor.attach(init, {
+          onEnter: function (args) {
+            let model = {ctx: args[0], dataMap: [], totalLen: 0, originalLen: 0, log: ""};
+            ctxCache[pointerToInt(args[0])] = model;
+            model.log = model.log.concat(COLORS.green, "[*] ENTER " + name + "_Init\n", COLORS.resetColor);
+          }
+        });
+        //CC_SHA1_Update(CC_SHA1_CTX *c, const void *data, CC_LONG len);
+        let update = Module.findExportByName("libSystem.B.dylib", name + "_Update");
+        if (update == null) {
+          console.warn(name + "_Update func is null");
+          return;
+        }
+        Interceptor.attach(update, {
+          onEnter: function (args) {
+            let model = ctxCache[pointerToInt(args[0])];
+            if (model == null) {
+              console.warn("model is null");
+              return;
+            }
+            let len = pointerToInt(args[2]);
+            let remainingSpace = CIPHER_CONFIG.hash.maxInputDataLength - model.totalLen;
+            if (len > 0 && remainingSpace > 0) {
+              model.originalLen += len;
+              let copyLen = Math.min(len, remainingSpace);
+              let tmpData = Memory.alloc(copyLen);
+              Memory.copy(tmpData, args[1], copyLen);
+              model.dataMap.push({data: tmpData, len: copyLen});
+              model.totalLen += copyLen;
+            }
+          }
+        });
+        //CC_SHA1_Final(unsigned char *md, CC_SHA1_CTX *c);
+        let final = Module.findExportByName("libSystem.B.dylib", name + "_Final");
+        if (final == null) {
+          console.warn(name + "_Final func is null");
+          return;
+        }
+        Interceptor.attach(final, {
+          onEnter: function (args) {
+            this.mdSha = args[0];
+            this.ctxSha = args[1];
+          },
+          onLeave: function (retval) {
+            let model = ctxCache[pointerToInt(this.ctxSha)];
+            if (model == null) {
+              console.warn(name + "_Final model is null");
+              return;
+            }
+            if (model.totalLen <= 0) {
+              console.warn("totalLen :", model.totalLen);
+              return;
+            }
+            let totalData = Memory.alloc(model.totalLen);
+            var offset = 0;
+            model.dataMap.forEach(function (value) {
+              Memory.copy(totalData.add(offset), value.data, value.len);
+              offset += value.len;
+            });
+            model.log = model.log.concat("[+] Data len: " + model.totalLen + "/" + model.originalLen + "\n");
+            model.log = model.log.concat("[+] Data :\n");
+            model.log = model.log.concat(print_arg(totalData, model.totalLen), "\n");
+            if (pointerToInt(this.mdSha) !== 0) {
+              model.log = model.log.concat(COLORS.magenta, "[+] Data out len: " + length + "\n");
+              model.log = model.log.concat("[+] Data out:\n");
+              model.log = model.log.concat(print_arg(ptr(this.mdSha), length), "\n", COLORS.resetColor);
+            } else {
+              model.log = model.log.concat(COLORS.red, "[!]: Data out: null\n", COLORS.resetColor);
+            }
+            if (CIPHER_CONFIG.hash.printStack) {
+              model.log = model.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+            }
+            model.log = model.log.concat(COLORS.green, "[*] EXIT " + name + "_Final" + "\n", COLORS.resetColor);
+            filterLog(model.log, CIPHER_CONFIG.hash.filter);
+          }
+        });
+      })();
+    }
+
+    function commonHMACInterceptor() {
+      function checkHMACAlgorithmEnable(algorithm) {
+        switch (algorithm) {
+          case 0:
+            return CIPHER_CONFIG.hmac.sha1;
+          case 1:
+            return CIPHER_CONFIG.hmac.md5;
+          case 2:
+            return CIPHER_CONFIG.hmac.sha256;
+          case 3:
+            return CIPHER_CONFIG.hmac.sha384;
+          case 4:
+            return CIPHER_CONFIG.hmac.sha512;
+          case 5:
+            return CIPHER_CONFIG.hmac.sha224;
+          default:
+            return true;
+        }
+    }
+
+      let name = "CCHmac";
+      //void CCHmac(CCHmacAlgorithm algorithm, const void *key, size_t keyLength,const void *data, size_t dataLength, void *macOut);
+      let hmac = Module.findExportByName("libSystem.B.dylib", name);
+      if (hmac == null) {
+        console.warn(name + " func is null");
+        return;
+      }
+      Interceptor.attach(hmac, {
+        onEnter: function (args) {
+          this.enable = checkHMACAlgorithmEnable(args[0].toInt32());
+          if (!this.enable)
+            return;
+          this.mdLen = CCHmacAlgorithmLength[args[0].toInt32()];
+          this.log = "";
+          this.log = this.log.concat(COLORS.green, "[*] ENTER ", name, "\n");
+          this.log = this.log.concat(COLORS.yellow, "[+] Algorithm: ", CCHmacAlgorithm[args[0].toInt32()], "\n", COLORS.resetColor);
+          this.log = this.log.concat(COLORS.cyan, "[+] Key len: ", args[2].toInt32(), "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] Key : \n", print_arg(args[1], args[2].toInt32()), "\n", COLORS.resetColor);
+          let dataLen = args[4].toInt32();
+          let printLen = Math.min(dataLen, CIPHER_CONFIG.hmac.maxInputDataLength);
+          this.log = this.log.concat("[+] Data len: ", printLen, "/", dataLen, "\n");
+          this.log = this.log.concat("[+] Data: \n", print_arg(args[3], printLen), "\n");
+          this.macOut = args[5];
+        },
+        onLeave: function (reval) {
+          if (!this.enable)
+            return;
+          this.log = this.log.concat(COLORS.magenta, "[+] Data out len: " + this.mdLen, COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.magenta, "[+] Data out:\n", print_arg(this.macOut, this.mdLen), COLORS.resetColor, "\n");
+          if (CIPHER_CONFIG.hmac.printStack) {
+            this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          this.log = this.log.concat(COLORS.green, "[*] EXIT ", name, COLORS.resetColor, "\n");
+          filterLog(this.log, CIPHER_CONFIG.hmac.filter);
+        }
     });
-    let i = Module.findExportByName("libSystem.B.dylib", n + "Final");
-    null != i ? Interceptor.attach(i, {
-      onEnter: function(t) {
-        this.mdOut = t[1], this.ctx = t[0];
-      },
-      onLeave: function (o) {
-        let l = a[I(this.ctx)];
-        if (null == l) return void console.warn(n + "Final model is null");
-        if (!l.enable) return;
-        if (l.totalLen <= 0) return void console.warn("totalLen :", l.totalLen);
-        let r = Memory.alloc(l.totalLen);
-        var i = 0;
-        l.dataMap.forEach((function (t) {
-          Memory.copy(r.add(i), t.data, t.len), i += t.len;
-        })), l.log = l.log.concat("[+] Data len: " + l.totalLen + "/" + l.originalLen + "\n"),
-            l.log = l.log.concat("[+] Data :\n"), l.log = l.log.concat(S(r, l.totalLen), "\n"),
-            l.log = l.log.concat(e.magenta, "[+] Data out len: " + l.mdLen + "\n"), l.log = l.log.concat("[+] Data out:\n"),
-            l.log = l.log.concat(S(ptr(this.mdOut), l.mdLen), "\n", e.resetColor), t.hmac.printStack && (l.log = l.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-            l.log = l.log.concat(e.green, "[*] EXIT " + n + "Final\n", e.resetColor), E(l.log, t.hmac.filter);
+      (function () {
+        let ctxCache = {};
+        //void
+        //      CCHmacInit(CCHmacContext *ctx, CCHmacAlgorithm algorithm,
+        //          const void *key, size_t keyLength);
+        let init = Module.findExportByName("libSystem.B.dylib", name + "Init");
+        if (init == null) {
+          console.warn(name + "Init func is null");
+          return;
+        }
+        Interceptor.attach(init, {
+          onEnter: function (args) {
+            let model = {
+              ctx: args[0],
+              dataMap: [],
+              totalLen: 0,
+              originalLen: 0,
+              log: "",
+              mdLen: CCHmacAlgorithmLength[args[1].toInt32()],
+              enable: checkHMACAlgorithmEnable(args[1].toInt32())
+            };
+            ctxCache[pointerToInt(args[0])] = model;
+            if (!model.enable)
+              return;
+            model.log = model.log.concat(COLORS.green, "[*] ENTER " + name + "Init\n", COLORS.resetColor);
+            model.log = model.log.concat(COLORS.yellow, "[+] Algorithm: " + CCHmacAlgorithm[args[1].toInt32()] + "\n", COLORS.resetColor);
+            model.log = model.log.concat(COLORS.cyan, "[+] Key len: " + args[3].toInt32() + COLORS.resetColor + "\n");
+            model.log = model.log.concat(COLORS.cyan, "[+] Key: \n" + print_arg(args[2], pointerToInt(args[3])) + "\n", COLORS.resetColor);
+          }
+        });
+        //void
+        //      CCHmacUpdate(CCHmacContext *ctx, const void *data, size_t dataLength);
+        let update = Module.findExportByName("libSystem.B.dylib", name + "Update");
+        if (update == null) {
+          console.warn(name + "Update func is null");
+          return;
+        }
+        Interceptor.attach(update, {
+          onEnter: function (args) {
+            let model = ctxCache[pointerToInt(args[0])];
+            if (model == null) {
+              console.warn(name + "Update model is null");
+              return;
+            }
+            if (!model.enable)
+              return;
+            let len = pointerToInt(args[2]);
+            let remainingSpace = CIPHER_CONFIG.hmac.maxInputDataLength - model.totalLen;
+            if (len > 0 && remainingSpace > 0) {
+              model.originalLen += len;
+              let copyLen = Math.min(len, remainingSpace);
+              let tmpData = Memory.alloc(copyLen);
+              Memory.copy(tmpData, args[1], copyLen);
+              model.dataMap.push({data: tmpData, len: copyLen});
+              model.totalLen += copyLen;
+            }
+          }
+        });
+        //void
+        //      CCHmacFinal(CCHmacContext *ctx, void *macOut);
+        let final = Module.findExportByName("libSystem.B.dylib", name + "Final");
+        if (final == null) {
+          console.warn(name + "Final func is null");
+          return;
+        }
+        Interceptor.attach(final, {
+          onEnter: function (args) {
+            this.mdOut = args[1];
+            this.ctx = args[0];
+          },
+          onLeave: function (retval) {
+            let model = ctxCache[pointerToInt(this.ctx)];
+            if (model == null) {
+              console.warn(name + "Final model is null");
+              return;
+            }
+            if (!model.enable)
+              return;
+            if (model.totalLen <= 0) {
+              console.warn("totalLen :", model.totalLen);
+              return;
+            }
+            let totalData = Memory.alloc(model.totalLen);
+            var offset = 0;
+            model.dataMap.forEach(function (value) {
+              Memory.copy(totalData.add(offset), value.data, value.len);
+              offset += value.len;
+            });
+            model.log = model.log.concat("[+] Data len: " + model.totalLen + "/" + model.originalLen + "\n");
+            model.log = model.log.concat("[+] Data :\n");
+            model.log = model.log.concat(print_arg(totalData, model.totalLen), "\n");
+            model.log = model.log.concat(COLORS.magenta, "[+] Data out len: " + model.mdLen + "\n");
+            model.log = model.log.concat("[+] Data out:\n");
+            model.log = model.log.concat(print_arg(ptr(this.mdOut), model.mdLen), "\n", COLORS.resetColor);
+            if (CIPHER_CONFIG.hmac.printStack) {
+              model.log = model.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+            }
+            model.log = model.log.concat(COLORS.green, "[*] EXIT " + name + "Final" + "\n", COLORS.resetColor);
+            filterLog(model.log, CIPHER_CONFIG.hmac.filter);
+          }
+        });
+      })();
+    }
+
+//pbkdf
+    function commonPBKDFInterceptor() {
+      //int
+      // CCKeyDerivationPBKDF( CCPBKDFAlgorithm algorithm, const char *password, size_t passwordLen,
+      //                       const uint8_t *salt, size_t saltLen,
+      //                       CCPseudoRandomAlgorithm prf, uint rounds,
+      //                       uint8_t *derivedKey, size_t derivedKeyLen)
+      let CCKeyDerivationPBKDF = Module.findExportByName("libSystem.B.dylib", "CCKeyDerivationPBKDF");
+      if (CCKeyDerivationPBKDF == null) {
+        console.warn("CCKeyDerivationPBKDF func is null");
+        return;
       }
-    }) : console.warn(n + "Final func is null");
-  }()) : console.warn(n + " func is null");
+      Interceptor.attach(CCKeyDerivationPBKDF, {
+        onEnter: function (args) {
+          this.params = [];
+          for (let i = 0; i < 9; i++) {
+            this.params.push(args[i]);
+          }
+        },
+        onLeave: function (reval) {
+          var log = "";
+          log = log.concat(COLORS.green, "[*] ENTER CCKeyDerivationPBKDF", COLORS.resetColor, "\n");
+          log = log.concat(COLORS.yellow, "[+] Algorithm: ", CCPBKDFAlgorithm[this.params[0].toInt32()], "\n", COLORS.resetColor);
+          log = log.concat(COLORS.yellow, "[+] PseudoRandomAlgorithm: ", CCPseudoRandomAlgorithm[this.params[5].toInt32()], "\n", COLORS.resetColor);
+          log = log.concat(COLORS.cyan, "[+] Rounds: ", String(pointerToInt(this.params[6])), "\n", COLORS.resetColor);
+          log = log.concat(COLORS.cyan, "[+] Password len: ", this.params[2].toInt32(), "\n");
+          log = log.concat(COLORS.cyan, "[+] Password : \n", print_arg(this.params[1], this.params[2].toInt32()), "\n", COLORS.resetColor);
+          log = log.concat(COLORS.cyan, "[+] Salt len: ", this.params[4].toInt32(), "\n");
+          log = log.concat(COLORS.cyan, "[+] Salt : \n", print_arg(this.params[3], this.params[4].toInt32()), "\n", COLORS.resetColor);
+          log = log.concat(COLORS.cyan, "[+] DerivedKey len: ", this.params[8].toInt32(), "\n");
+          log = log.concat(COLORS.cyan, "[+] DerivedKey : \n", print_arg(this.params[7], this.params[8].toInt32()), "\n", COLORS.resetColor);
+          if (CIPHER_CONFIG.pbkdf.printStack) {
+            log = log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          log = log.concat(COLORS.green, "[*] EXIT CCKeyDerivationPBKDF", COLORS.resetColor, "\n");
+          filterLog(log, CIPHER_CONFIG.pbkdf.filter);
+        }
+      });
+      //uint
+      // CCCalibratePBKDF(CCPBKDFAlgorithm algorithm, size_t passwordLen, size_t saltLen,
+      //                  CCPseudoRandomAlgorithm prf, size_t derivedKeyLen, uint32_t msec)
+      let CCCalibratePBKDF = Module.findExportByName("libSystem.B.dylib", "CCCalibratePBKDF");
+      if (CCCalibratePBKDF == null) {
+        console.warn("CCCalibratePBKDF func is null");
+        return;
+      }
+      Interceptor.attach(CCCalibratePBKDF, {
+        onEnter: function (args) {
+          this.log = "";
+          this.log = this.log.concat(COLORS.green, "[*] ENTER CCCalibratePBKDF", COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.yellow, "[+] Algorithm: ", CCPBKDFAlgorithm[args[0].toInt32()], "\n", COLORS.resetColor);
+          this.log = this.log.concat(COLORS.yellow, "[+] PseudoRandomAlgorithm: ", CCPseudoRandomAlgorithm[args[3].toInt32()], "\n", COLORS.resetColor);
+          this.log = this.log.concat(COLORS.cyan, "[+] Password len: ", args[1].toInt32(), COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] Salt len: ", args[2].toInt32(), COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] DerivedKey len: ", args[4].toInt32(), COLORS.resetColor, "\n");
+          this.log = this.log.concat(COLORS.cyan, "[+] Msec : ", pointerToInt(args[5]), COLORS.resetColor, "\n");
+        },
+        onLeave: function (reval) {
+          this.log = this.log.concat(COLORS.cyan, "[+] IterNum : \n", pointerToInt(reval), COLORS.resetColor, "\n");
+          if (CIPHER_CONFIG.pbkdf.printStack) {
+            this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+          }
+          this.log = this.log.concat(COLORS.green, "[*] EXIT CCCalibratePBKDF", COLORS.resetColor, "\n");
+          filterLog(this.log, CIPHER_CONFIG.pbkdf.filter);
+        }
+      });
 }
 
-    function D() {
-      let o = Module.findExportByName("libSystem.B.dylib", "CCKeyDerivationPBKDF");
-      if (null == o) return void console.warn("CCKeyDerivationPBKDF func is null");
-      Interceptor.attach(o, {
-    onEnter: function(t) {
-      this.params = [];
-      for (let e = 0; e < 9; e++) this.params.push(t[e]);
-    },
-        onLeave: function (o) {
-          var n = "";
-          n = (n = (n = (n = (n = (n = (n = (n = (n = (n = n.concat(e.green, "[*] ENTER CCKeyDerivationPBKDF", e.resetColor, "\n")).concat(e.yellow, "[+] Algorithm: ", k[this.params[0].toInt32()], "\n", e.resetColor)).concat(e.yellow, "[+] PseudoRandomAlgorithm: ", b[this.params[5].toInt32()], "\n", e.resetColor)).concat(e.cyan, "[+] Rounds: ", String(I(this.params[6])), "\n", e.resetColor)).concat(e.cyan, "[+] Password len: ", this.params[2].toInt32(), "\n")).concat(e.cyan, "[+] Password : \n", S(this.params[1], this.params[2].toInt32()), "\n", e.resetColor)).concat(e.cyan, "[+] Salt len: ", this.params[4].toInt32(), "\n")).concat(e.cyan, "[+] Salt : \n", S(this.params[3], this.params[4].toInt32()), "\n", e.resetColor)).concat(e.cyan, "[+] DerivedKey len: ", this.params[8].toInt32(), "\n")).concat(e.cyan, "[+] DerivedKey : \n", S(this.params[7], this.params[8].toInt32()), "\n", e.resetColor),
-          t.pbkdf.printStack && (n = n.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-              E(n = n.concat(e.green, "[*] EXIT CCKeyDerivationPBKDF", e.resetColor, "\n"), t.pbkdf.filter);
-    }
-  });
-      let n = Module.findExportByName("libSystem.B.dylib", "CCCalibratePBKDF");
-      null != n ? Interceptor.attach(n, {
-    onEnter: function(t) {
-      this.log = "", this.log = this.log.concat(e.green, "[*] ENTER CCCalibratePBKDF", e.resetColor, "\n"),
-          this.log = this.log.concat(e.yellow, "[+] Algorithm: ", k[t[0].toInt32()], "\n", e.resetColor),
-          this.log = this.log.concat(e.yellow, "[+] PseudoRandomAlgorithm: ", b[t[3].toInt32()], "\n", e.resetColor),
-          this.log = this.log.concat(e.cyan, "[+] Password len: ", t[1].toInt32(), e.resetColor, "\n"),
-          this.log = this.log.concat(e.cyan, "[+] Salt len: ", t[2].toInt32(), e.resetColor, "\n"),
-          this.log = this.log.concat(e.cyan, "[+] DerivedKey len: ", t[4].toInt32(), e.resetColor, "\n"),
-          this.log = this.log.concat(e.cyan, "[+] Msec : ", I(t[5]), e.resetColor, "\n");
-    },
-        onLeave: function (o) {
-          this.log = this.log.concat(e.cyan, "[+] IterNum : \n", I(o), e.resetColor, "\n"),
-          t.pbkdf.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-              this.log = this.log.concat(e.green, "[*] EXIT CCCalibratePBKDF", e.resetColor, "\n"),
-              E(this.log, t.pbkdf.filter);
-    }
-      }) : console.warn("CCCalibratePBKDF func is null");
-}
+//keychain
+    function commonKeychainInterceptor() {
+      var ISA_MASK = ptr('0x0000000ffffffff8');
+      var ISA_MAGIC_MASK = ptr('0x000003f000000001');
+      var ISA_MAGIC_VALUE = ptr('0x000001a000000001');
 
-    function v() {
-      var o = ptr("0x0000000ffffffff8"), n = ptr("0x000003f000000001"), a = ptr("0x000001a000000001");
+      // @ts-ignore
+      function isObjC(p) {
+        var klass = getObjCClassPtr(p);
+        return !klass.isNull();
+      }
 
-      function l(t) {
-        var e = function (t) {
-          if (!r(t)) return NULL;
-          var e = t.readPointer(), l = e;
-          l.and(n).equals(a) && (l = e.and(o));
-          if (r(l)) return l;
+      // @ts-ignore
+      function getObjCClassPtr(p) {
+        /*
+         * Loosely based on:
+         * https://blog.timac.org/2016/1124-testing-if-an-arbitrary-pointer-is-a-valid-objective-c-object/
+         */
+        if (!isReadable(p)) {
           return NULL;
-        }(t);
-        return !e.isNull();
+        }
+        var isa = p.readPointer();
+        var classP = isa;
+        if (classP.and(ISA_MAGIC_MASK).equals(ISA_MAGIC_VALUE)) {
+          classP = isa.and(ISA_MASK);
+        }
+        if (isReadable(classP)) {
+          return classP;
+        }
+        return NULL;
       }
 
-      function r(t) {
+      // @ts-ignore
+      function isReadable(p) {
         try {
-          return t.readU8(), !0;
-        } catch (t) {
-          return !1;
+          p.readU8();
+          return true;
+        } catch (e) {
+          return false;
         }
       }
 
-      function i(t, e, o, n) {
-        var a = Module.findExportByName(null, e);
-        if (null === a) return console.warn("[-] Cannot find export:", e), null;
-        if ("f" === t) {
-          var l = new NativeFunction(a, o, n);
-          return l || (console.warn("[-] parse error for function:", e), null);
+      /*******************************************************
+       * 0. 通用工具函数
+       *******************************************************/
+      /**
+       * 从导出符号中获取 C 函数或者常量指针
+       * type = "f" => function, type = "d" => data
+       * ret/args 仅函数类型需要，常量不需要
+       */
+      //@ts-ignore
+      function getExportFunction(type, name, ret, args) {
+        var nptr = Module.findExportByName(null, name);
+        if (nptr === null) {
+          console.warn("[-] Cannot find export:", name);
+          return null;
         }
-        if ("d" === t) {
-          var r = a.readPointer();
-          return r || (console.warn("[-] parse error for data:", e), null);
+        if (type === "f") {
+          // @ts-ignore
+          var funclet = new NativeFunction(nptr, ret, args);
+          if (!funclet) {
+            console.warn("[-] parse error for function:", name);
+            return null;
+          }
+          return funclet;
+        } else if (type === "d") {
+          var datalet = nptr.readPointer();
+          if (!datalet) {
+            console.warn("[-] parse error for data:", name);
+            return null;
+          }
+          return datalet;
         }
       }
 
-      function c(o, n = "") {
-        var a = "";
-        if (!o || 0 === o.toInt32() || o.isNull() || !l(o)) return a;
-        var r = new ObjC.Object(o);
-        if (r.isKindOfClass_(ObjC.classes.NSArray)) {
-          a = a.concat(n, e.green, "[*] ENTER dump NSArray", e.resetColor, "\n");
-          for (var i = 0; i < r.count(); i++) {
-            var s = r.objectAtIndex_(i);
-            a = a.concat(n, "[+] object: \n", c(s.handle, "    " + n), "\n");
+      /**
+       * 依据 NSData 首字节 / 是否全可见 ASCII，做简单类型检测
+       * - JSON: 首字节是 '{' or '['
+       * - ASCII: 每字节都在 0x20~0x7E
+       * - 否则 => Binary
+       */
+      // @ts-ignore
+      function detectDataType(nsDataObj) {
+        if (!nsDataObj || nsDataObj.isNull())
+          return "Empty";
+        var length = nsDataObj.length();
+        if (length === 0)
+          return "Empty";
+        var ptrBytes = nsDataObj.bytes();
+        var rawBytes = ptrBytes.readByteArray(length);
+        var u8Arr = new Uint8Array(rawBytes);
+        // 1) JSON
+        if (u8Arr[0] === 0x7B || u8Arr[0] === 0x5B) {
+          // '{'=0x7B, '['=0x5B
+          return "Possible JSON";
+        }
+        // 2) 检查是否全为可见 ASCII
+        var allAscii = true;
+        for (var i = 0; i < u8Arr.length; i++) {
+          if (u8Arr[i] < 0x20 || u8Arr[i] > 0x7E) {
+            allAscii = false;
+            break;
           }
-          a = a.concat(n, e.green, "[*] EXIT dump NSArray", e.resetColor, "\n");
-        } else if (r.isKindOfClass_(ObjC.classes.NSDictionary)) {
-          a = a.concat(n, e.green, "[*] ENTER dump NSDictionary", e.resetColor, "\n");
-          var h = r.allKeys();
-          for (i = 0; i < h.count(); i++) {
-            var g = h.objectAtIndex_(i), C = r.objectForKey_(g), u = g.toString();
-            a = "NSConcreteData" === C.$className ? a.concat(n, "[+] ", u, ": \n", c(C.handle, "    " + n), "\n") : C.isKindOfClass_(ObjC.classes.NSArray) || C.isKindOfClass_(ObjC.classes.NSDictionary) || C.isKindOfClass_(ObjC.classes.NSData) ? 0 == u.indexOf("v_Data") ? a.concat(n, e.yellow, "[+] ", u, ": \n", c(C.handle, "    " + n), e.resetColor, "\n") : a.concat(n, "[+] ", u, ": \n", c(C.handle, "    " + n), "\n") : 0 == u.indexOf("acct") || 0 == u.indexOf("svce") || 0 == u.indexOf("agrp") ? a.concat(n, e.cyan, "[+] ", `${u}: ${C}`, e.resetColor, "\n") : a.concat(n, "[+] ", `${u}: ${C}`, "\n");
-          }
-          a = a.concat(n, e.green, "[*] EXIT dump NSDictionary", e.resetColor, "\n");
-        } else if (r.isKindOfClass_(ObjC.classes.NSData)) if (!r || r.isNull() || 0 == r.length()) a = (a = a.concat(n, "[-] NSData.Len: 0", "\n")).concat(n, "[-] NSData: null", "\n"); else {
-          var d = r.length(), m = r.bytes();
-          let e = Math.min(t.keychain.maxDataLength, d);
-          a = (a = a.concat(n, "[+] NSData.Len: ", String(e), "/", d, "", "\n")).concat(n, "[+] NSData: \n", S(m, e, n), "\n");
-        } else a = a.concat(n, "[-] ", r.$className, ": \n", r.toString(), "\n");
-        return a;
+        }
+        if (allAscii)
+          return "Possible ASCII";
+        // 3) 否则就是二进制
+        return "Binary";
       }
 
-      function s() {
-        var o = ObjC.classes.NSMutableDictionary, n = new ObjC.Object(i("d", "kCFBooleanTrue")),
-            a = new ObjC.Object(i("d", "kSecReturnAttributes")), l = new ObjC.Object(i("d", "kSecReturnData")),
-            r = new ObjC.Object(i("d", "kSecReturnRef")), s = ObjC.Object(i("d", "kSecMatchLimitAll")),
-            h = ObjC.Object(i("d", "kSecMatchLimit")), g = ObjC.Object(i("d", "kSecClassGenericPassword")),
-            C = ObjC.Object(i("d", "kSecClassInternetPassword")), u = ObjC.Object(i("d", "kSecClassCertificate")),
-            d = ObjC.Object(i("d", "kSecClassKey")), m = ObjC.Object(i("d", "kSecClassIdentity")),
-            p = ObjC.Object(i("d", "kSecClass")), y = (ObjC.Object(i("d", "kSecAttrAccessibleAfterFirstUnlock")),
-                ObjC.Object(i("d", "kSecAttrAccessibleWhenUnlocked")), ObjC.Object(i("d", "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly")),
-                ObjC.Object(i("d", "kSecAttrAccessibleAlwaysThisDeviceOnly")), ObjC.Object(i("d", "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly")),
-                ObjC.Object(i("d", "kSecAttrAccessibleWhenUnlockedThisDeviceOnly")), ObjC.Object(i("d", "kSecAttrAccessibleAlways")),
-                i("f", "SecItemCopyMatching", "int", ["pointer", "pointer"])), f = [g, C, u, d, m], b = o.alloc().init(),
-            k = "";
-        k = k.concat(e.green, "[*] ENTER dump keychain", e.resetColor, "\n");
-        var S = "";
-        f.forEach((function (t) {
-          S = "    ", k = k.concat(S, e.green, "[*] ENTER dump item", e.resetColor, "\n"),
-              b.removeAllObjects(), b.setObject_forKey_(n, a), b.setObject_forKey_(n, l), b.setObject_forKey_(n, r),
-              b.setObject_forKey_(s, h), b.setObject_forKey_(t, p);
-          var o = Memory.alloc(Process.pointerSize);
-          o.writePointer(NULL);
-          var i = y(b.handle, o);
-          if (k = k.concat(S, e.resetColor, "[+] status: ", i, e.resetColor, "\n"), 0 === i) {
-            var g = o.readPointer();
-            k = k.concat(S, e.resetColor, "[+] object: \n", c(g, "   " + S), e.resetColor, "\n");
-          } else k = k.concat(S, e.resetColor, "[-] object: null", e.resetColor, "\n");
-          k = k.concat(S, e.green, "[*] EXIT dump item", e.resetColor, "\n");
-        })), E(k = k.concat(e.green, "\n[*] EXIT dump keychain", e.resetColor, "\n"), t.keychain.filter);
+      /**
+       * 将 NSData 以 hexdump(16字节一行)格式打印
+       */
+
+      /*******************************************************
+       * 1. 打印 Keychain Item (NSDictionary / NSData / NSArray)
+       *******************************************************/
+      /**
+       * 当我们在“静态枚举”或“动态结果”里拿到的对象可能是：
+       * - NSArray(里面每个元素是 NSDictionary)
+       * - NSDictionary(里面可能有 v_Data / kSecValueData 字段)
+       * - NSData(直接就是 __NSCFData)
+       * - 甚至其他类型
+       *
+       * 我们做一个统一的入口来处理。
+       */
+      //@ts-ignore
+      function dumpKeychainObject(objHandle, indent = "") {
+        var log = "";
+        if (!objHandle || objHandle.toInt32() === 0 || objHandle.isNull() || !isObjC(objHandle))
+          return log;
+        var obj = new ObjC.Object(objHandle);
+        // 1) NSArray
+        if (obj.isKindOfClass_(ObjC.classes.NSArray)) {
+          log = log.concat(indent, COLORS.green, "[*] ENTER dump NSArray", COLORS.resetColor, "\n");
+          for (var i = 0; i < obj.count(); i++) {
+            var subItem = obj.objectAtIndex_(i);
+            // 可能是 dict / data / etc.
+            log = log.concat(indent, "[+] object: \n", dumpKeychainObject(subItem.handle, "    " + indent), "\n");
+          }
+          log = log.concat(indent, COLORS.green, "[*] EXIT dump NSArray", COLORS.resetColor, "\n");
+        }
+        // 2) NSDictionary
+        else if (obj.isKindOfClass_(ObjC.classes.NSDictionary)) {
+          log = log.concat(indent, COLORS.green, "[*] ENTER dump NSDictionary", COLORS.resetColor, "\n");
+          // 我们遍历 key => value
+          var allKeys = obj.allKeys();
+          for (var i = 0; i < allKeys.count(); i++) {
+            var key = allKeys.objectAtIndex_(i);
+            var val = obj.objectForKey_(key);
+            var kStr = key.toString();
+            // 如果是 data 字段，就 hexdump
+            // 常见的是 v_Data, kSecValueData, v_DataEncrypted
+            if (val.$className === "NSConcreteData") {
+              // var type = detectDataType(val);
+              // console.log("    " + kStr + " [Detected: " + type + "] => hexdump:");
+              // dumpNSData(val);
+              log = log.concat(indent, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), "\n");
+            } else {
+              // 如果是其他对象(NSArray/NSDictionary/NSString/NSNumber/...)
+              // 递归 or 直接 toString
+              if (val.isKindOfClass_(ObjC.classes.NSArray) ||
+                  val.isKindOfClass_(ObjC.classes.NSDictionary) ||
+                  val.isKindOfClass_(ObjC.classes.NSData)) {
+                // 递归再打印
+                if (kStr.indexOf("v_Data") == 0) {
+                  log = log.concat(indent, COLORS.yellow, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), COLORS.resetColor, "\n");
+                } else {
+                  log = log.concat(indent, "[+] ", kStr, ": \n", dumpKeychainObject(val.handle, "    " + indent), "\n");
+                }
+              } else {
+                if (kStr.indexOf("acct") == 0 || kStr.indexOf("svce") == 0 || kStr.indexOf("agrp") == 0) {
+                  log = log.concat(indent, COLORS.cyan, "[+] ", `${kStr}: ${val}`, COLORS.resetColor, "\n");
+                } else {
+                  // @ts-ignore
+                  log = log.concat(indent, "[+] ", `${kStr}: ${val}`, "\n");
+                }
+              }
+            }
+          }
+          log = log.concat(indent, COLORS.green, "[*] EXIT dump NSDictionary", COLORS.resetColor, "\n");
+        }
+        // 3) NSData
+        else if (obj.isKindOfClass_(ObjC.classes.NSData)) {
+          if (!obj || obj.isNull() || obj.length() == 0) {
+            log = log.concat(indent, "[-] NSData.Len: 0", "\n");
+            log = log.concat(indent, "[-] NSData: null", "\n");
+          } else {
+            var length = obj.length();
+            var ptrBytes = obj.bytes();
+            let minLen = Math.min(CIPHER_CONFIG.keychain.maxDataLength, length);
+            log = log.concat(indent, "[+] NSData.Len: ", String(minLen), "/", length, "", "\n");
+            // @ts-ignore
+            log = log.concat(indent, "[+] NSData: \n", print_arg(ptrBytes, minLen, indent), "\n");
+          }
+        }
+        // 4) 其他类型
+        else {
+          log = log.concat(indent, "[-] ", obj.$className, ": \n", obj.toString(), "\n");
+        }
+        return log;
       }
 
-      if (O()) {
-        let t = setInterval((function () {
-          clearInterval(t), s();
-        }), 5e3);
-      } else s();
-      t.keychain.realtimeIntercept && function () {
-        var o = Module.findExportByName(null, "SecItemAdd");
-        o && Interceptor.attach(o, {
-          onEnter: function (t) {
-            this.log = "", this.log = this.log.concat(e.green, "[*] ENTER SecItemAdd", e.resetColor, "\n"),
-                this.attrsPtr = t[0], this.resultPtr = t[1], this.log = this.log.concat("[+] attrs: \n", c(this.attrsPtr, "    "), "\n");
-          },
-          onLeave: function (o) {
-            this.log = this.log.concat("[+] status: ", o.toInt32(), "\n"), 0 !== this.resultPtr.toInt32() && l(this.resultPtr.readPointer()) ? this.log = this.log.concat("[+] result: \n", c(this.resultPtr, "    "), "\n") : this.log = this.log.concat("[-] result: null", "\n"),
-            t.keychain.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-                this.log = this.log.concat(e.green, "[*] EXIT SecItemAdd", e.resetColor, "\n"),
-                E(this.log, t.keychain.filter);
+      /*******************************************************
+       * 2. 静态枚举 Keychain
+       *******************************************************/
+      function dumpKeychain() {
+        var NSMutableDictionary = ObjC.classes.NSMutableDictionary;
+        // @ts-ignore
+        var kCFBooleanTrue = new ObjC.Object(getExportFunction("d", "kCFBooleanTrue"));
+        // @ts-ignore
+        var kSecReturnAttributes = new ObjC.Object(getExportFunction("d", "kSecReturnAttributes"));
+        // @ts-ignore
+        var kSecReturnData = new ObjC.Object(getExportFunction("d", "kSecReturnData"));
+        // @ts-ignore
+        var kSecReturnRef = new ObjC.Object(getExportFunction("d", "kSecReturnRef"));
+        // @ts-ignore
+        var kSecMatchLimitAll = ObjC.Object(getExportFunction("d", "kSecMatchLimitAll"));
+        // @ts-ignore
+        var kSecMatchLimit = ObjC.Object(getExportFunction("d", "kSecMatchLimit"));
+        // @ts-ignore
+        var kSecClassGenericPassword = ObjC.Object(getExportFunction("d", "kSecClassGenericPassword"));
+        // @ts-ignore
+        var kSecClassInternetPassword = ObjC.Object(getExportFunction("d", "kSecClassInternetPassword"));
+        // @ts-ignore
+        var kSecClassCertificate = ObjC.Object(getExportFunction("d", "kSecClassCertificate"));
+        // @ts-ignore
+        var kSecClassKey = ObjC.Object(getExportFunction("d", "kSecClassKey"));
+        // @ts-ignore
+        var kSecClassIdentity = ObjC.Object(getExportFunction("d", "kSecClassIdentity"));
+        // @ts-ignore
+        var kSecClass = ObjC.Object(getExportFunction("d", "kSecClass"));
+        //ref: https://github.com/seemoo-lab/apple-continuity-tools/blob/565f2a95d8c3a958ffb430a5022a2df923eb5c1b/keychain_access/frida_scripts/hook_SecItemCopyMatching.js
+        // @ts-ignore
+        var kSecAttrAccessibleAfterFirstUnlock = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAfterFirstUnlock"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenUnlocked = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenUnlocked"));
+        // @ts-ignore
+        var kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleAlwaysThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAlwaysThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleWhenUnlockedThisDeviceOnly = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleWhenUnlockedThisDeviceOnly"));
+        // @ts-ignore
+        var kSecAttrAccessibleAlways = ObjC.Object(getExportFunction("d", "kSecAttrAccessibleAlways"));
+        // @ts-ignore
+        var SecItemCopyMatching = getExportFunction("f", "SecItemCopyMatching", "int", ["pointer", "pointer"]);
+        var classes = [
+          kSecClassGenericPassword,
+          kSecClassInternetPassword,
+          kSecClassCertificate,
+          kSecClassKey,
+          kSecClassIdentity
+        ];
+        // 逐个枚举
+        var query = NSMutableDictionary.alloc().init();
+        var log = "";
+        log = log.concat(COLORS.green, "[*] ENTER dump keychain", COLORS.resetColor, "\n");
+        var indent = "";
+        classes.forEach(function (secItemClass) {
+          indent = "    ";
+          log = log.concat(indent, COLORS.green, "[*] ENTER dump item", COLORS.resetColor, "\n");
+          query.removeAllObjects();
+          query.setObject_forKey_(kCFBooleanTrue, kSecReturnAttributes);
+          query.setObject_forKey_(kCFBooleanTrue, kSecReturnData);
+          query.setObject_forKey_(kCFBooleanTrue, kSecReturnRef);
+          query.setObject_forKey_(kSecMatchLimitAll, kSecMatchLimit);
+          query.setObject_forKey_(secItemClass, kSecClass);
+          var resultPtr = Memory.alloc(Process.pointerSize);
+          resultPtr.writePointer(NULL);
+          // @ts-ignore
+          var status = SecItemCopyMatching(query.handle, resultPtr);
+          // errSecSuccess = 0
+          log = log.concat(indent, COLORS.resetColor, "[+] status: ", status, COLORS.resetColor, "\n");
+          if (status === 0) {
+            var outPtr = resultPtr.readPointer();
+            log = log.concat(indent, COLORS.resetColor, "[+] object: \n", dumpKeychainObject(outPtr, "   " + indent), COLORS.resetColor, "\n");
+          } else {
+            // 没有数据时不会返回0
+            // console.log("[*] No items for", secItemClass.toString(), " => status =", status);
+            log = log.concat(indent, COLORS.resetColor, "[-] object: null", COLORS.resetColor, "\n");
           }
+          log = log.concat(indent, COLORS.green, "[*] EXIT dump item", COLORS.resetColor, "\n");
         });
-        var n = Module.findExportByName(null, "SecItemCopyMatching");
-        n && Interceptor.attach(n, {
-          onEnter: function (t) {
-            this.log = "", this.log = this.log.concat(e.green, "[*] ENTER SecItemCopyMatching", e.resetColor, "\n"),
-                this.queryPtr = t[0], this.resultPtr = t[1], this.log = this.log.concat("[+] query: \n", c(this.queryPtr, "    "), "\n");
-          },
-          onLeave: function (o) {
-            let n = o.toInt32();
-            if (this.log = this.log.concat("[+] status: ", n, "\n"), 0 !== this.resultPtr.toInt32()) {
-              let t = this.resultPtr.readPointer();
-              l(t) ? this.log = this.log.concat("[+] result: \n", c(t, "    "), "\n") : this.log = this.log.concat("[-] result: null", "\n");
-            } else this.log = this.log.concat("[-] result: null", "\n");
-            t.keychain.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-                this.log = this.log.concat(e.green, "[*] EXIT SecItemCopyMatching", e.resetColor, "\n"),
-                E(this.log, t.keychain.filter);
-          }
-        });
-        var a = Module.findExportByName(null, "SecItemUpdate");
-        a && Interceptor.attach(a, {
-          onEnter: function (t) {
-            this.log = "", this.log = this.log.concat(e.green, "[*] ENTER SecItemUpdate", e.resetColor, "\n"),
-                this.queryPtr = t[0], this.attrsPtr = t[1], this.log = this.log.concat("[+] query: \n", c(this.queryPtr, "    "), "\n"),
-                this.log = this.log.concat("[+] attributesToUpdate: \n", c(this.attrsPtr, "    "), "\n");
-          },
-          onLeave: function (o) {
-            let n = o.toInt32();
-            this.log = this.log.concat("[+] status: ", n, "\n"), t.keychain.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-                this.log = this.log.concat(e.green, "[*] EXIT SecItemUpdate", e.resetColor, "\n"),
-                E(this.log, t.keychain.filter);
-          }
-        });
-        var r = Module.findExportByName(null, "SecItemDelete");
-        r && Interceptor.attach(r, {
-          onEnter: function (t) {
-            this.log = "", this.log = this.log.concat(e.green, "[*] ENTER SecItemDelete", e.resetColor, "\n"),
-                this.queryPtr = t[0], this.log = this.log.concat("[+] query: \n", c(this.queryPtr, "    "), "\n");
-          },
-          onLeave: function (o) {
-            this.log = this.log.concat("[+] status: ", o.toInt32(), "\n"), t.keychain.printStack && (this.log = this.log.concat(e.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), e.resetColor, "\n")),
-                this.log = this.log.concat(e.green, "[*] EXIT SecItemDelete", e.resetColor, "\n"),
-                E(this.log, t.keychain.filter);
-          }
-        });
-      }();
+        log = log.concat(COLORS.green, "\n[*] EXIT dump keychain", COLORS.resetColor, "\n");
+        filterLog(log, CIPHER_CONFIG.keychain.filter);
+      }
+
+      /*******************************************************
+       * 3. 动态 Hook Keychain API
+       *******************************************************/
+      function keychainInterceptor() {
+        // 3.1 Hook SecItemAdd
+        var SecItemAddPtr = Module.findExportByName(null, "SecItemAdd");
+        if (SecItemAddPtr) {
+          Interceptor.attach(SecItemAddPtr, {
+            onEnter: function (args) {
+              this.log = "";
+              this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemAdd", COLORS.resetColor, "\n");
+              this.attrsPtr = args[0];
+              this.resultPtr = args[1];
+              this.log = this.log.concat("[+] attrs: \n", dumpKeychainObject(this.attrsPtr, "    "), "\n");
+            },
+            onLeave: function (retval) {
+              this.log = this.log.concat("[+] status: ", retval.toInt32(), "\n");
+              if (this.resultPtr.toInt32() !== 0) {
+                var outCF = this.resultPtr.readPointer();
+                if (isObjC(outCF)) {
+                  this.log = this.log.concat("[+] result: \n", dumpKeychainObject(this.resultPtr, "    "), "\n");
+                } else {
+                  this.log = this.log.concat("[-] result: null", "\n");
+                }
+              } else {
+                this.log = this.log.concat("[-] result: null", "\n");
+              }
+              if (CIPHER_CONFIG.keychain.printStack) {
+                this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+              }
+              this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemAdd", COLORS.resetColor, "\n");
+              filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+            }
+          });
+        }
+        // 3.2 Hook SecItemCopyMatching
+        var SecItemCopyMatchingPtr = Module.findExportByName(null, "SecItemCopyMatching");
+        if (SecItemCopyMatchingPtr) {
+          Interceptor.attach(SecItemCopyMatchingPtr, {
+            onEnter: function (args) {
+              this.log = "";
+              this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemCopyMatching", COLORS.resetColor, "\n");
+              this.queryPtr = args[0];
+              this.resultPtr = args[1];
+              this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+            },
+            onLeave: function (retval) {
+              let status = retval.toInt32();
+              this.log = this.log.concat("[+] status: ", status, "\n");
+              if (this.resultPtr.toInt32() !== 0) {
+                let resultObj = this.resultPtr.readPointer();
+                if (isObjC(resultObj)) {
+                  this.log = this.log.concat("[+] result: \n", dumpKeychainObject(resultObj, "    "), "\n");
+                } else {
+                  this.log = this.log.concat("[-] result: null", "\n");
+                }
+              } else {
+                this.log = this.log.concat("[-] result: null", "\n");
+              }
+              if (CIPHER_CONFIG.keychain.printStack) {
+                this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+              }
+              this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemCopyMatching", COLORS.resetColor, "\n");
+              filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+            }
+          });
+        }
+        // 3.3 Hook SecItemUpdate
+        var SecItemUpdatePtr = Module.findExportByName(null, "SecItemUpdate");
+        if (SecItemUpdatePtr) {
+          Interceptor.attach(SecItemUpdatePtr, {
+            onEnter: function (args) {
+              this.log = "";
+              this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemUpdate", COLORS.resetColor, "\n");
+              this.queryPtr = args[0];
+              this.attrsPtr = args[1];
+              this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+              this.log = this.log.concat("[+] attributesToUpdate: \n", dumpKeychainObject(this.attrsPtr, "    "), "\n");
+            },
+            onLeave: function (retval) {
+              let status = retval.toInt32();
+              this.log = this.log.concat("[+] status: ", status, "\n");
+              if (CIPHER_CONFIG.keychain.printStack) {
+                this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+              }
+              this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemUpdate", COLORS.resetColor, "\n");
+              filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+            }
+          });
+        }
+        // 3.4 Hook SecItemDelete
+        var SecItemDeletePtr = Module.findExportByName(null, "SecItemDelete");
+        if (SecItemDeletePtr) {
+          Interceptor.attach(SecItemDeletePtr, {
+            onEnter: function (args) {
+              this.log = "";
+              this.log = this.log.concat(COLORS.green, "[*] ENTER SecItemDelete", COLORS.resetColor, "\n");
+              this.queryPtr = args[0];
+              this.log = this.log.concat("[+] query: \n", dumpKeychainObject(this.queryPtr, "    "), "\n");
+            },
+            onLeave: function (retval) {
+              this.log = this.log.concat("[+] status: ", retval.toInt32(), "\n");
+              if (CIPHER_CONFIG.keychain.printStack) {
+                this.log = this.log.concat(COLORS.blue, "[+] stack:\n", Thread.backtrace(this.context, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join("\n"), COLORS.resetColor, "\n");
+              }
+              this.log = this.log.concat(COLORS.green, "[*] EXIT SecItemDelete", COLORS.resetColor, "\n");
+              filterLog(this.log, CIPHER_CONFIG.keychain.filter);
+            }
+          });
+        }
+      }
+
+      if (isSpawned()) {
+        let intervalId = setInterval(function () {
+          clearInterval(intervalId);
+          dumpKeychain();
+        }, 5000);
+      } else {
+        dumpKeychain();
+      }
+      if (CIPHER_CONFIG.keychain.realtimeIntercept) {
+        keychainInterceptor();
+    }
     }
 
-    ObjC.available ? t.enable && (t.crypto.enable && M(), t.hash.enable && (t.hash.sha1 && L("CC_SHA1", 20),
-    t.hash.sha224 && L("CC_SHA224", 28), t.hash.sha256 && L("CC_SHA256", 32), t.hash.sha384 && L("CC_SHA384", 48),
-    t.hash.sha512 && L("CC_SHA512", 64), t.hash.md2 && L("CC_MD2", 16), t.hash.md4 && L("CC_MD4", 16),
-    t.hash.md5 && L("CC_MD5", 16)), t.hmac.enable && w(), t.pbkdf.enable && D(), t.keychain.enable && v()) : console.log("Only supports iOS!!");
+//start
+    (function () {
+      if (!ObjC.available) {
+        console.log("Only supports iOS!!");
+        return;
+      }
+      if (!CIPHER_CONFIG.enable) {
+        return;
+      }
+      if (CIPHER_CONFIG.crypto.enable) {
+        commonCryptoInterceptor();
+      }
+      if (CIPHER_CONFIG.hash.enable) {
+        if (CIPHER_CONFIG.hash.sha1) {
+          //extern unsigned char *CC_SHA1(const void *data, CC_LONG len, unsigned char *md)
+          commonHashInterceptor("CC_SHA1", 20);
+        }
+        if (CIPHER_CONFIG.hash.sha224) {
+          //extern unsigned char *CC_SHA224(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_SHA224", 28);
+        }
+        if (CIPHER_CONFIG.hash.sha256) {
+          //extern unsigned char *CC_SHA256(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_SHA256", 32);
+        }
+        if (CIPHER_CONFIG.hash.sha384) {
+          //extern unsigned char *CC_SHA384(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_SHA384", 48);
+        }
+        if (CIPHER_CONFIG.hash.sha512) {
+          //extern unsigned char *CC_SHA512(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_SHA512", 64);
+        }
+        if (CIPHER_CONFIG.hash.md2) {
+          //extern unsigned char *CC_MD2(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_MD2", 16);
+        }
+        if (CIPHER_CONFIG.hash.md4) {
+          //extern unsigned char *CC_MD4(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_MD4", 16);
+        }
+        if (CIPHER_CONFIG.hash.md5) {
+          //extern unsigned char *CC_MD5(const void *data, CC_LONG len, unsigned char *md);
+          commonHashInterceptor("CC_MD5", 16);
+        }
+      }
+      if (CIPHER_CONFIG.hmac.enable) {
+        commonHMACInterceptor();
+      }
+      if (CIPHER_CONFIG.pbkdf.enable) {
+        commonPBKDFInterceptor();
+      }
+      if (CIPHER_CONFIG.keychain.enable) {
+        commonKeychainInterceptor();
+      }
+    })();
 
-},{}]},{},[1])
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIm5vZGVfbW9kdWxlcy9icm93c2VyLXBhY2svX3ByZWx1ZGUuanMiLCJhZ2VudC9pbmRleC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTs7O0FDd0JBLE1BQU0sSUFBYztFQUNoQixTQUFTO0VBQ1QsZUFBZTtFQUNmLFFBQVM7SUFDTCxTQUFTO0lBQ1QsZUFBZ0I7SUFDaEIsYUFBYTtJQUNiLE1BQU07SUFDTixNQUFNO0lBQ04sU0FBTztJQUNQLE9BQU87SUFDUCxNQUFNO0lBQ04sTUFBTTtJQUNOLFdBQVc7SUFDWCxRQUFTOztFQUViLE1BQU87SUFDSCxTQUFTO0lBQ1Qsb0JBQXFCO0lBQ3JCLGFBQWE7SUFDYixNQUFNO0lBQ04sTUFBTTtJQUNOLE1BQU07SUFDTixPQUFPO0lBQ1AsU0FBUztJQUNULFNBQVM7SUFDVCxTQUFTO0lBQ1QsU0FBUztJQUNULFFBQVM7O0VBRWIsTUFBTztJQUNILFNBQVM7SUFDVCxvQkFBcUI7SUFDckIsYUFBYTtJQUNiLE9BQU87SUFDUCxNQUFNO0lBQ04sU0FBUztJQUNULFNBQVM7SUFDVCxTQUFTO0lBQ1QsU0FBUztJQUNULFFBQVM7O0VBRWIsT0FBUTtJQUNKLFNBQVM7SUFDVCxhQUFhO0lBQ2IsUUFBUzs7RUFFYixVQUFXO0lBQ1AsU0FBUztJQUNULGVBQWdCO0lBQ2hCLGFBQWE7SUFDYixvQkFBb0I7SUFDcEIsUUFBUzs7R0FPWCxJQUFTO0VBQ1gsWUFBYyxFQUFjLGVBQWEsU0FBVTtFQUNuRCxNQUFRLEVBQWMsZUFBYSxTQUFVO0VBQzdDLEtBQU8sRUFBYyxlQUFhLFNBQVU7RUFDNUMsUUFBVSxFQUFjLGVBQWEsU0FBVTtFQUMvQyxXQUFhLEVBQWMsZUFBYSxTQUFVO0VBQ2xELE9BQVMsRUFBYyxlQUFhLFNBQVU7RUFDOUMsU0FBVyxFQUFjLGVBQWEsU0FBVTtFQUNoRCxRQUFVLEVBQWMsZUFBYSxTQUFVO0VBQy9DLE9BQVMsRUFBYyxlQUFhLFVBQVc7RUFDL0MsS0FBTyxFQUFjLGVBQWEsVUFBVztFQUM3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
+  }, {}]
+}, {}, [1]);

@@ -5,7 +5,8 @@
     "allowJs": true,
     "noEmit": true,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "removeComments": false
   },
   "files": [
     "agent/index.ts"
