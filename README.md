@@ -12,7 +12,7 @@ Intercept all cryptography-related functions on iOS with Frida Api.
 * [x] `MD2`,`MD4`,`MD5`
 * [x] `HMAC`
 * [x] `PBKDF`
-* [ ] `KEYCHAIN`
+* [x] `KEYCHAIN`
 * [ ] `RSA`
 * [ ] `ECDH`
 * [ ] `ECDSA`
