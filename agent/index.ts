@@ -77,7 +77,7 @@ const CIPHER_CONFIG={
         "enable":true,
         "maxDataLength": 240,
         "printStack":false,
-        "realtimeIntercept": true,
+        "realtimeIntercept": true,//true: dump keychain and intercept api ; false: only dump
         "filter":[]
     }
 }
